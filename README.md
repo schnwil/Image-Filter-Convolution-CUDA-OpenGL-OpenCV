@@ -5,6 +5,6 @@ The convolution filters are optimized 2D CUDA stencils.
 
 File IO and benchmarking are provided by calls to the OpenCV library.
 
-Image display is provided by interoperating CUDA with OpenGL.
+Image display is provided by interoperating CUDA with OpenCV.
 
 To compile the code run the makefile.
