@@ -10,6 +10,8 @@
 #include "gputimer.h"
 #include "key_bindings.h"
 
+#define MAX_FPS 60.0
+
 __constant__ float constConvKernelMem[256];
 // Create the cuda event timers 
 gpuTimer timer;
@@ -19,7 +21,7 @@ using namespace std;
 int main (int argc, char** argv)
 {
     gpuTimer t1;
-    double counter=0.0,tick=0.0;
+    double counter=0.0;
     unsigned int frameCounter=0;
     float *d_X,*d_Y;
 
@@ -51,7 +53,7 @@ int main (int argc, char** argv)
  
     // Create matrix to hold original and processed image 
     camera >> frame;
-    unsigned char *d_pixelDataInput, *d_pixelDataOutput;
+    unsigned char *d_pixelDataInput, *d_pixelDataOutput, *d_pixelBuffer;
     
     cudaMalloc((void **) &d_X, sizeof(sobelGradientX));
     cudaMalloc((void **) &d_Y, sizeof(sobelGradientY));
@@ -60,6 +62,7 @@ int main (int argc, char** argv)
 
     cv::Mat inputMat     (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelDataInput));
     cv::Mat outputMat    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelDataOutput));
+    cv::Mat bufferMat    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelBuffer));
 
     // Create buffer to hold sobel gradients - XandY 
     unsigned char *sobelBufferX, *sobelBufferY;
@@ -68,61 +71,72 @@ int main (int argc, char** argv)
     
     //key codes to switch between filters
     unsigned int key_pressed = NO_FILTER;
+    char charOutputBuf[255];
+    string kernel_t = "No Filter";
     // Run loop to capture images from camera or loop over single image 
     while(1)
     {
         if (key_pressed == ESCAPE)
            break;
 
+        t1.start(); // timer for overall metrics
         // Capture image frame 
         camera >> frame;
         
         // Convert frame to gray scale for further filter operation
 	     // Remove color channels, simplify convolution operation
         cv::cvtColor(frame, inputMat, CV_BGR2GRAY);
-        
-        t1.start(); // timer for overall metrics
+       
         switch (key_pressed) {
         case NO_FILTER:
+        default:
            outputMat = inputMat;
+           kernel_t = "No Filter";
            break;
         case GAUSSIAN_FILTER:
-           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchGaussian(d_pixelDataInput, d_pixelBuffer, frame.size(), gaussianKernel5x5Offset);
+           outputMat = bufferMat;
+           kernel_t = "Guassian";
            break;
         case SOBEL_FILTER:
            launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
-           launchSobel_constantMemory(d_pixelDataOutput, d_pixelDataInput, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
-           outputMat = inputMat;
+           launchSobel_constantMemory(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           outputMat = bufferMat;
+           kernel_t = "Sobel";
            break;
         case SOBEL_NAIVE_FILTER:
            launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
-           launchSobelNaive_withoutPadding(d_pixelDataOutput, d_pixelDataInput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
-           outputMat = inputMat;
+           launchSobelNaive_withoutPadding(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           outputMat = bufferMat;
+           kernel_t = "Sobel Naive";
            break;
         case SOBEL_NAIVE_PADDED_FILTER:
            launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
-           launchSobelNaive_withPadding(d_pixelDataOutput, d_pixelDataInput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
-           outputMat = inputMat;
+           launchSobelNaive_withPadding(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           outputMat = bufferMat;
+           kernel_t = "Sobel Naive Pad";
            break;
         }
         t1.stop();
-        
+
         double tms = t1.elapsed(); 
         counter += tms*0.001;
-        printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
-           1.0e-6* (double)(frame.size().height*frame.size().width)/(tms*0.001),frame.size().height*frame.size().width,tms);
+        /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
+           1.0e-6* (double)(frame.size().height*frame.size().width)/(tms*0.001),frame.size().height*frame.size().width,tms); **/
         
-	// Update frame count 
-        frameCounter +=1;
-        if(counter - tick >= 1)
-        {
-            tick++;
-            printf("Frames per second: %d\n",frameCounter);
-            frameCounter = 0;
-        }
+	     //create metric string
+        frameCounter++;
+        float fps = 1000.0 / tms; fps = fps > MAX_FPS ? MAX_FPS : fps;
+        float adjusted_t = tms < 1000.0 / MAX_FPS ? 1000.0 / MAX_FPS : tms;
+        double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (adjusted_t*0.001);
+        snprintf(charOutputBuf, sizeof(charOutputBuf), "Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f", 
+           frameCounter, fps, mps, kernel_t, tms);
+        string metricString = charOutputBuf;
+
+        //update display
+        cv::putText(outputMat, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
         cv::imshow("Video Feed", outputMat);
 
-        // Break loop
         int key = cv::waitKey(1);
         key_pressed = key == -1 ? key_pressed : key;
     }
