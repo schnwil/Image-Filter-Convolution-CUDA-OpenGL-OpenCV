@@ -90,13 +90,19 @@ int main (int argc, char** argv)
            launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
            break;
         case SOBEL_FILTER:
-           launchSobel_constantMemory(d_pixelDataInput, d_pixelDataOutput, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchSobel_constantMemory(d_pixelDataOutput, d_pixelDataInput, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           outputMat = inputMat;
            break;
         case SOBEL_NAIVE_FILTER:
-           launchSobelNaive_withoutPadding(d_pixelDataInput, d_pixelDataOutput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchSobelNaive_withoutPadding(d_pixelDataOutput, d_pixelDataInput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           outputMat = inputMat;
            break;
         case SOBEL_NAIVE_PADDED_FILTER:
-           launchSobelNaive_withPadding(d_pixelDataInput, d_pixelDataOutput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchSobelNaive_withPadding(d_pixelDataOutput, d_pixelDataInput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           outputMat = inputMat;
            break;
         }
         t1.stop();
