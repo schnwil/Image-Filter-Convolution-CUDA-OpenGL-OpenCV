@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "gputimer.h"
+#include "key_bindings.h"
 
 __constant__ float constConvKernelMem[256];
 // Create the cuda event timers 
@@ -25,7 +26,8 @@ int main (int argc, char** argv)
     /// Pass video file as input
     // For e.g. if camera device is at /dev/video1 - pass 1
     // You can pass video file as well instead of webcam stream
-    cv::VideoCapture camera(1);
+    cv::VideoCapture camera("C:/Users/Alex/Videos/The Witcher 3/test.mp4");
+    //cv::VideoCapture camera(1);
     
     cv::Mat frame;
     if(!camera.isOpened()) 
@@ -35,13 +37,7 @@ int main (int argc, char** argv)
     }
     
     // Open window for each kernel 
-    cv::namedWindow("Source");
-    cv::namedWindow("Grayscale");
-    cv::namedWindow("Gaussian");
-    cv::namedWindow("Sobel_constantMemory");
-    cv::namedWindow("SobelNaive_withoutPadding");
-    cv::namedWindow("SobelNaive_withPadding");
-
+    cv::namedWindow("Video Feed");
 
     cudaMemcpyToSymbol(constConvKernelMem, gaussianKernel5x5, sizeof(gaussianKernel5x5), 0);
     const ssize_t gaussianKernel5x5Offset = 0;
@@ -55,44 +51,60 @@ int main (int argc, char** argv)
  
     // Create matrix to hold original and processed image 
     camera >> frame;
-    unsigned char *origData_d, *gaussianData_d, *sobelData_d_constMem, *sobelData_d_NaiveWithoutPadding, *sobelData_d_NaiveWithPadding;
+    unsigned char *d_pixelDataInput, *d_pixelDataOutput;
     
     cudaMalloc((void **) &d_X, sizeof(sobelGradientX));
     cudaMalloc((void **) &d_Y, sizeof(sobelGradientY));
     cudaMemcpy(d_X, &sobelGradientX[0], sizeof(sobelGradientX), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Y, &sobelGradientY[0], sizeof(sobelGradientY), cudaMemcpyHostToDevice);
 
-    cv::Mat origMat     (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &origData_d));
-    cv::Mat gaussianMat (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &gaussianData_d));
-    cv::Mat sobelMat    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &sobelData_d_constMem));
-    cv::Mat sobelMatNaive_withoutPadding    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &sobelData_d_NaiveWithoutPadding));
-    cv::Mat sobelMatNaive_withPadding    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &sobelData_d_NaiveWithPadding));
+    cv::Mat inputMat     (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelDataInput));
+    cv::Mat outputMat    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelDataOutput));
 
     // Create buffer to hold sobel gradients - XandY 
     unsigned char *sobelBufferX, *sobelBufferY;
     cudaMalloc(&sobelBufferX, frame.size().width * frame.size().height);
     cudaMalloc(&sobelBufferY, frame.size().width * frame.size().height);
     
+    //key codes to switch between filters
+    unsigned int key_pressed = NO_FILTER;
     // Run loop to capture images from camera or loop over single image 
     while(1)
     {
+        if (key_pressed == ESCAPE)
+           break;
+
         // Capture image frame 
         camera >> frame;
         
         // Convert frame to gray scale for further filter operation
-	// Remove color channels, simplify convolution operation
-        cv::cvtColor(frame, origMat, CV_BGR2GRAY);
+	     // Remove color channels, simplify convolution operation
+        cv::cvtColor(frame, inputMat, CV_BGR2GRAY);
         
         t1.start(); // timer for overall metrics
-        launchGaussian(origData_d,gaussianData_d,frame.size(),gaussianKernel5x5Offset);
-        launchSobel_constantMemory(gaussianData_d, sobelData_d_constMem, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
-        launchSobelNaive_withoutPadding(gaussianData_d, sobelData_d_NaiveWithoutPadding, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
-        launchSobelNaive_withPadding(gaussianData_d, sobelData_d_NaiveWithPadding, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+        switch (key_pressed) {
+        case NO_FILTER:
+           outputMat = inputMat;
+           break;
+        case GAUSSIAN_FILTER:
+           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           break;
+        case SOBEL_FILTER:
+           launchSobel_constantMemory(d_pixelDataInput, d_pixelDataOutput, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           break;
+        case SOBEL_NAIVE_FILTER:
+           launchSobelNaive_withoutPadding(d_pixelDataInput, d_pixelDataOutput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           break;
+        case SOBEL_NAIVE_PADDED_FILTER:
+           launchSobelNaive_withPadding(d_pixelDataInput, d_pixelDataOutput, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           break;
+        }
         t1.stop();
         
         double tms = t1.elapsed(); 
         counter += tms*0.001;
-        printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(frame.size().height*frame.size().width)/(tms*0.001),frame.size().height*frame.size().width,tms);
+        printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
+           1.0e-6* (double)(frame.size().height*frame.size().width)/(tms*0.001),frame.size().height*frame.size().width,tms);
         
 	// Update frame count 
         frameCounter +=1;
@@ -102,23 +114,16 @@ int main (int argc, char** argv)
             printf("Frames per second: %d\n",frameCounter);
             frameCounter = 0;
         }
-        cv::imshow("Source", frame);
-        cv::imshow("Grayscale", origMat);
-        cv::imshow("Gaussian", gaussianMat);
-        cv::imshow("Sobel_constantMemory", sobelMat);
-        cv::imshow("SobelNaive_withoutPadding", sobelMatNaive_withoutPadding);
-        cv::imshow("SobelNaive_withPadding", sobelMatNaive_withPadding);
+        cv::imshow("Video Feed", outputMat);
 
         // Break loop
-        if(cv::waitKey(1) == 27) break;
+        int key = cv::waitKey(1);
+        key_pressed = key == -1 ? key_pressed : key;
     }
     
     // Deallocate memory
-    cudaFreeHost(origMat.data);
-    cudaFreeHost(gaussianMat.data);
-    cudaFreeHost(sobelMat.data);
-    cudaFreeHost(sobelMatNaive_withoutPadding.data);
-    cudaFreeHost(sobelMatNaive_withPadding.data);
+    cudaFreeHost(inputMat.data);
+    cudaFreeHost(outputMat.data);
     cudaFree(sobelBufferX);
     cudaFree(sobelBufferY);
 
@@ -138,7 +143,7 @@ void launchGaussian(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize
     timer.stop();
     cudaThreadSynchronize();
     double tms = timer.elapsed(); 
-    printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+    //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
 
@@ -161,7 +166,7 @@ void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigne
     timer.stop();
     cudaThreadSynchronize();
     double tms = timer.elapsed(); 
-    printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+    //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
 void launchSobelNaive_withoutPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size, const float *d_X,const float *d_Y)
@@ -182,7 +187,7 @@ void launchSobelNaive_withoutPadding(unsigned char *dIn, unsigned char *dOut, un
     timer.stop();
     cudaThreadSynchronize();
     double tms = timer.elapsed(); 
-    printf("Sobel Naive (without padding): Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+    //printf("Sobel Naive (without padding): Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
 void launchSobelNaive_withPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size, const float *d_X,const float *d_Y)
@@ -203,7 +208,7 @@ void launchSobelNaive_withPadding(unsigned char *dIn, unsigned char *dOut, unsig
     timer.stop();
     cudaThreadSynchronize();
     double tms = timer.elapsed(); 
-    printf("Sobel Naive (with padding): Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+    //printf("Sobel Naive (with padding): Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
 // Allocate buffer 

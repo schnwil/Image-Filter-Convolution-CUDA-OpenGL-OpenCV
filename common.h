@@ -1,6 +1,11 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
+#if defined(_MSC_VER)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
+
 #pragma once
 #include <opencv2/core/core.hpp>
 
