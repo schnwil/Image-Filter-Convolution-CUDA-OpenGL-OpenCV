@@ -9,8 +9,8 @@ CC=nvcc
 ARCH=sm_53
 DEBUG_FLAGS=-g -lineinfo
 CFLAGS= -arch $(ARCH) $(DEBUG_FLAGS)
-LDFLAGS=-lopencv_core 
-SRC=matconv.cu
+LDFLAGS=-lopencv_core -lopencv_highgui -lopencv_imgproc
+SRC=main.cu
 TARGET=matconv
 OBJ=$(SRC:.cu=.o)
 
