@@ -21,7 +21,6 @@ using namespace std;
 int main (int argc, char** argv)
 {
     gpuTimer t1;
-    double counter=0.0;
     unsigned int frameCounter=0;
     float *d_X,*d_Y,*d_gaussianKernel5x5;
 
@@ -76,13 +75,13 @@ int main (int argc, char** argv)
     unsigned int key_pressed = NO_FILTER;
     char charOutputBuf[255];
     string kernel_t = "No Filter";
+    double tms = 0.0;
     // Run loop to capture images from camera or loop over single image 
     while(1)
     {
         if (key_pressed == ESCAPE)
            break;
 
-        t1.start(); // timer for overall metrics
         // Capture image frame 
         camera >> frame;
         
@@ -97,41 +96,49 @@ int main (int argc, char** argv)
            kernel_t = "No Filter";
            break;
         case GAUSSIAN_FILTER:
+           t1.start(); // timer for overall metrics
            launchGaussian_withoutPadding(d_pixelDataInput, d_pixelBuffer, frame.size(), d_gaussianKernel5x5);
+           t1.stop();
+           tms = t1.elapsed();
            outputMat = bufferMat;
            kernel_t = "Guassian";
            break;
         case SOBEL_FILTER:
+           t1.start(); // timer for overall metrics
            launchGaussian_constantMemory(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
            launchSobel_constantMemory(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           t1.stop();
+           tms = t1.elapsed();
            outputMat = bufferMat;
            kernel_t = "Sobel";
            break;
         case SOBEL_NAIVE_FILTER:
+           t1.start(); // timer for overall metrics
            launchGaussian_withoutPadding(d_pixelDataInput, d_pixelDataOutput, frame.size(),d_gaussianKernel5x5);
            launchSobelNaive_withoutPadding(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           t1.stop();
+           tms = t1.elapsed();
            outputMat = bufferMat;
            kernel_t = "Sobel Naive";
            break;
         case SOBEL_NAIVE_PADDED_FILTER:
+           t1.start(); // timer for overall metrics
            launchGaussian_withoutPadding(d_pixelDataInput, d_pixelDataOutput, frame.size(), d_gaussianKernel5x5);
            launchSobelNaive_withPadding(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
+           t1.stop();
+           tms = t1.elapsed();
            outputMat = bufferMat;
            kernel_t = "Sobel Naive Pad";
            break;
         }
-        t1.stop();
 
-        double tms = t1.elapsed(); 
-        counter += tms*0.001;
         /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
            1.0e-6* (double)(frame.size().height*frame.size().width)/(tms*0.001),frame.size().height*frame.size().width,tms); **/
         
-	     //create metric string
+	 //create metric string
         frameCounter++;
-        float fps = 1000.0 / tms; fps = fps > MAX_FPS ? MAX_FPS : fps;
-        float adjusted_t = tms < 1000.0 / MAX_FPS ? 1000.0 / MAX_FPS : tms;
-        double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (adjusted_t*0.001);
+        float fps = 1000.f / tms; //fps = fps > MAX_FPS ? MAX_FPS : fps;
+        double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
         snprintf(charOutputBuf, sizeof(charOutputBuf), "Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f", 
            frameCounter, fps, mps, kernel_t, tms);
         string metricString = charOutputBuf;
