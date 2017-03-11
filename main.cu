@@ -23,7 +23,7 @@ int main (int argc, char** argv)
     gpuTimer t1;
     double counter=0.0;
     unsigned int frameCounter=0;
-    float *d_X,*d_Y;
+    float *d_X,*d_Y,*d_gaussianKernel5x5;
 
     /// Pass video file as input
     // For e.g. if camera device is at /dev/video1 - pass 1
@@ -55,8 +55,11 @@ int main (int argc, char** argv)
     camera >> frame;
     unsigned char *d_pixelDataInput, *d_pixelDataOutput, *d_pixelBuffer;
     
+    cudaMalloc((void **) &d_gaussianKernel5x5, sizeof(gaussianKernel5x5));
     cudaMalloc((void **) &d_X, sizeof(sobelGradientX));
     cudaMalloc((void **) &d_Y, sizeof(sobelGradientY));
+    
+    cudaMemcpy(d_gaussianKernel5x5, &gaussianKernel5x5[0], sizeof(gaussianKernel5x5), cudaMemcpyHostToDevice);
     cudaMemcpy(d_X, &sobelGradientX[0], sizeof(sobelGradientX), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Y, &sobelGradientY[0], sizeof(sobelGradientY), cudaMemcpyHostToDevice);
 
@@ -94,24 +97,24 @@ int main (int argc, char** argv)
            kernel_t = "No Filter";
            break;
         case GAUSSIAN_FILTER:
-           launchGaussian(d_pixelDataInput, d_pixelBuffer, frame.size(), gaussianKernel5x5Offset);
+           launchGaussian_withoutPadding(d_pixelDataInput, d_pixelBuffer, frame.size(), d_gaussianKernel5x5);
            outputMat = bufferMat;
            kernel_t = "Guassian";
            break;
         case SOBEL_FILTER:
-           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchGaussian_constantMemory(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
            launchSobel_constantMemory(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
            outputMat = bufferMat;
            kernel_t = "Sobel";
            break;
         case SOBEL_NAIVE_FILTER:
-           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchGaussian_withoutPadding(d_pixelDataInput, d_pixelDataOutput, frame.size(),d_gaussianKernel5x5);
            launchSobelNaive_withoutPadding(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
            outputMat = bufferMat;
            kernel_t = "Sobel Naive";
            break;
         case SOBEL_NAIVE_PADDED_FILTER:
-           launchGaussian(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchGaussian_withoutPadding(d_pixelDataInput, d_pixelDataOutput, frame.size(), d_gaussianKernel5x5);
            launchSobelNaive_withPadding(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), d_X, d_Y);
            outputMat = bufferMat;
            kernel_t = "Sobel Naive Pad";
@@ -146,11 +149,14 @@ int main (int argc, char** argv)
     cudaFreeHost(outputMat.data);
     cudaFree(sobelBufferX);
     cudaFree(sobelBufferY);
+    cudaFree(d_X);
+    cudaFree(d_Y);
+    cudaFree(d_gaussianKernel5x5);
 
     return 0;
 }
 
-void launchGaussian(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
+void launchGaussian_constantMemory(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
     dim3 threadsPerBlock(16, 16);
@@ -159,6 +165,21 @@ void launchGaussian(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize
     timer.start();
     {
          matrixConvGPU_constantMemory <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, 0, 0, offset, 5, 5, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
+void launchGaussian_withoutPadding(unsigned char *dIn, unsigned char *dOut, cv::Size size, const float *kernel)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    timer.start();
+    {
+         matrixConvGPUNaive_withoutPadding <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, 5, 5, dOut, kernel);
     }
     timer.stop();
     cudaThreadSynchronize();

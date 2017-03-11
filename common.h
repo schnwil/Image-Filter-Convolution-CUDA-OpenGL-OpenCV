@@ -41,7 +41,8 @@ unsigned char* allocateBuffer(unsigned int size, unsigned char **dPtr);
 void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY);
 void launchSobelNaive_withoutPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,const float *d_X,const float *d_Y);
 void launchSobelNaive_withPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,const float *d_X,const float *d_Y);
-void launchGaussian(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
+void launchGaussian_constantMemory(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
+void launchGaussian_withoutPadding(unsigned char *dIn, unsigned char *dOut, cv::Size size,const float* kernel);
 
 //Kernel
 __global__ void sobelGradientKernel(unsigned char *a, unsigned char *b, unsigned char *c);
