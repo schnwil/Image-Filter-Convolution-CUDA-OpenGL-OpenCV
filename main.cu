@@ -25,6 +25,7 @@ int main (int argc, char** argv)
     gpuTimer t1;
     unsigned int frameCounter=0;
     float *d_X,*d_Y,*d_gaussianKernel5x5;
+    bool video_paused = false;
 
     /// Pass video file as input
     // For e.g. if camera device is at /dev/video1 - pass 1
@@ -95,7 +96,14 @@ int main (int argc, char** argv)
            break;
 
         // Capture image frame 
-        camera >> frame;
+        if(key_pressed == PAUSE)
+            video_paused = true;
+        
+        if(key_pressed == RESUME)
+            video_paused = false;
+
+        if(!video_paused)
+            camera >> frame;
         
         // Convert frame to gray scale for further filter operation
 	// Remove color channels, simplify convolution operation
