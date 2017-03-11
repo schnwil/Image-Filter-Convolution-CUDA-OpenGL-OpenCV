@@ -30,7 +30,8 @@ int main (int argc, char** argv)
     /// Pass video file as input
     // For e.g. if camera device is at /dev/video1 - pass 1
     // You can pass video file as well instead of webcam stream
-    cv::VideoCapture camera("C:/Users/Alex/Videos/The Witcher 3/test.mp4");
+    const char *videoFile = "C:/Users/Alex/Videos/The Witcher 3/test.mp4";
+    cv::VideoCapture camera(videoFile);
     //cv::VideoCapture camera(1);
     
     cv::Mat frame;
@@ -198,6 +199,8 @@ int main (int argc, char** argv)
         double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
         snprintf(charOutputBuf, sizeof(charOutputBuf), "Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f", 
            frameCounter, fps, mps, kernel_t, tms);
+        //printf("Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f\n", 
+        //   frameCounter, fps, mps, kernel_t, tms);
         string metricString = charOutputBuf;
 
         //update display
