@@ -11,6 +11,7 @@
 #include "gpu.h"
 #include "gputimer.h"
 #include "key_bindings.h"
+#include "helper_funcs.h"
 
 #define MAX_FPS 60.0
 
@@ -85,14 +86,13 @@ int main (int argc, char** argv)
     
     //key codes to switch between filters
     unsigned int key_pressed = NO_FILTER;
-    char charOutputBuf[255];
-    string kernel_t = "No Filter";
     double tms = 0.0;
     struct timespec start, end; // variable to record cpu time
     
     // Run loop to capture images from camera or loop over single image 
     while(1)
     {
+        string kernel_t = "";
         if (key_pressed == ESCAPE)
            break;
 
@@ -168,7 +168,7 @@ int main (int argc, char** argv)
            launchGaussianCPU(inputMatCPU.data, outputMatCPU.data, frame.size());
            clock_gettime(CLOCK_MONOTONIC, &end);  // end time 
            tms = (NS_IN_SEC * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)*1.0e-6; 
-           kernel_t = "Gaussian Naive CPU";
+           kernel_t = "Gaussian CPU";
            break;
         case SOBEL_FILTER_FLOAT:
            t1.start(); // timer for overall metrics
@@ -177,7 +177,7 @@ int main (int argc, char** argv)
            t1.stop();
            tms = t1.elapsed();
            outputMat = bufferMat;
-           kernel_t = "Sobel - float";
+           kernel_t = "Sobel Float";
            break;
         case SOBEL_FILTER_RESTRICT:
            t1.start(); // timer for overall metrics
@@ -186,7 +186,7 @@ int main (int argc, char** argv)
            t1.stop();
            tms = t1.elapsed();
            outputMat = bufferMat;
-           kernel_t = "Sobel - restrict";
+           kernel_t = "Sobel Restrictive";
            break;
         }
 
@@ -197,11 +197,9 @@ int main (int argc, char** argv)
         frameCounter++;
         float fps = 1000.f / tms; //fps = fps > MAX_FPS ? MAX_FPS : fps;
         double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
-        snprintf(charOutputBuf, sizeof(charOutputBuf), "Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f", 
-           frameCounter, fps, mps, kernel_t, tms);
+        string metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
         //printf("Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f\n", 
         //   frameCounter, fps, mps, kernel_t, tms);
-        string metricString = charOutputBuf;
 
         //update display
         if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
