@@ -98,7 +98,7 @@ int main (int argc, char** argv)
         camera >> frame;
         
         // Convert frame to gray scale for further filter operation
-	     // Remove color channels, simplify convolution operation
+	// Remove color channels, simplify convolution operation
         if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
             cv::cvtColor(frame, inputMatCPU, CV_BGR2GRAY);
         else
@@ -161,6 +161,24 @@ int main (int argc, char** argv)
            tms = (NS_IN_SEC * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)*1.0e-6; 
            kernel_t = "Gaussian Naive CPU";
            break;
+        case SOBEL_FILTER_FLOAT:
+           t1.start(); // timer for overall metrics
+           launchGaussian_float(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchSobel_float(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Sobel - float";
+           break;
+        case SOBEL_FILTER_RESTRICT:
+           t1.start(); // timer for overall metrics
+           launchGaussian_restrict(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchSobel_restrict(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Sobel - restrict";
+           break;
         }
 
         /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
@@ -206,12 +224,41 @@ int main (int argc, char** argv)
     return 0;
 }
 
+void launchGaussian_float(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    timer.start();
+    {
+         matrixConvGPU_float <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, 0, 0, offset, 5, 5, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
+void launchGaussian_restrict(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    timer.start();
+    {
+         matrixConvGPU_restrict <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, 0, 0, offset, 5, 5, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
 void launchGaussian_constantMemory(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
     dim3 threadsPerBlock(16, 16);
     
-    // Perform the gaussian blur (first kernel in store @ 0)
     timer.start();
     {
          matrixConvGPU_constantMemory <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, 0, 0, offset, 5, 5, dOut);
@@ -237,6 +284,47 @@ void launchGaussian_withoutPadding(unsigned char *dIn, unsigned char *dOut, cv::
     //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+void launchSobel_float(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    // pythagoran kernel launch paramters
+    dim3 blocksPerGridP(size.width * size.height / 256);
+    dim3 threadsPerBlockP(256, 1);
+     
+    timer.start();
+    {
+        matrixConvGPU_float<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetX, 3, 3, dGradX);
+        matrixConvGPU_float<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetY, 3, 3, dGradY);
+        sobelGradientKernel_float<<<blocksPerGridP,threadsPerBlockP>>>(dGradX, dGradY, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
+void launchSobel_restrict(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    // pythagoran kernel launch paramters
+    dim3 blocksPerGridP(size.width * size.height / 256);
+    dim3 threadsPerBlockP(256, 1);
+     
+    timer.start();
+    {
+        matrixConvGPU_restrict<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetX, 3, 3, dGradX);
+        matrixConvGPU_restrict<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetY, 3, 3, dGradY);
+        sobelGradientKernel_restrict<<<blocksPerGridP,threadsPerBlockP>>>(dGradX, dGradY, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
 
 void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
 {
@@ -247,7 +335,6 @@ void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigne
     dim3 blocksPerGridP(size.width * size.height / 256);
     dim3 threadsPerBlockP(256, 1);
      
-    // Perform the sobel gradient convolutions (x&y padding is now 2 because there is a border of 2 around a 5x5 gaussian filtered image)
     timer.start();
     {
         matrixConvGPU_constantMemory<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetX, 3, 3, dGradX);
@@ -319,6 +406,26 @@ unsigned char* allocateBuffer(unsigned int size, unsigned char **dPtr)
 __global__ void sobelGradientKernel(unsigned char *gX, unsigned char *gY, unsigned char *dOut)
 {
     int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    float x = float(gX[idx]);
+    float y = float(gY[idx]);
+
+    dOut[idx] = (unsigned char) sqrtf(x*x + y*y);
+}
+
+__global__ void sobelGradientKernel_float(unsigned char *gX, unsigned char *gY, unsigned char *dOut)
+{
+    int idx = (int)(((float)blockIdx.x * (float)blockDim.x) + (float)threadIdx.x);
+
+    float x = float(gX[idx]);
+    float y = float(gY[idx]);
+
+    dOut[idx] = (unsigned char) sqrtf(x*x + y*y);
+}
+
+__global__ void sobelGradientKernel_restrict(unsigned char* __restrict__ gX, unsigned char* __restrict__ gY, unsigned char *dOut)
+{
+    int idx = (int)(((float)blockIdx.x * (float)blockDim.x) + (float)threadIdx.x);
 
     float x = float(gX[idx]);
     float y = float(gY[idx]);
@@ -429,4 +536,72 @@ __global__ void matrixConvGPU_constantMemory(unsigned char *dIn, int width, int 
     }
     
     dOut[(y * width) + x] = (unsigned char) accum;
+}
+
+__global__ void matrixConvGPU_float(unsigned char *dIn, int width, int height, int paddingX, int paddingY, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char *dOut)
+{
+    // Calculate our pixel's location
+    float x = ((float)blockIdx.x * (float)blockDim.x) + (float)threadIdx.x;
+    float y = ((float)blockIdx.y * (float)blockDim.y) + (float)threadIdx.y;
+
+    // Calculate radius along X and Y axis
+    // We can also use one kernel variable instead - kernel radius
+    float accum = 0.0;
+    int   kernelRadiusW = kernelW/2;
+    int   kernelRadiusH = kernelH/2;
+
+    // Determine pixels to operate 
+    if(x >= ((float)kernelRadiusW + (float)paddingX) && y >= ((float)kernelRadiusH + (float)paddingY) &&
+       x < (((float)blockDim.x * (float)gridDim.x) - (float)kernelRadiusW - (float)paddingX) &&
+       y < (((float)blockDim.y * (float)gridDim.y) - (float)kernelRadiusH - (float)paddingY))
+    {
+        for(int i = -kernelRadiusH; i <= kernelRadiusH; i++) // Along Y axis
+        {
+            for(int j = -kernelRadiusW; j <= kernelRadiusW; j++) //Along X axis
+            {
+                // Sample the weight for this location
+                float jj = ((float)j+(float)kernelRadiusW);
+                float ii = ((float)i+(float)kernelRadiusH);
+                float w  = constConvKernelMem[(int)((ii * (float)kernelW) + jj + (float)kernelOffset)]; //kernel from constant memory
+                 
+                accum += w * float(dIn[(int)(((y+(float)i) * (float)width) + (x+(float)j))]);
+            }
+        }
+    }
+    
+    dOut[(int)((y * (float)width) + x)] = (unsigned char) accum;
+}
+
+__global__ void matrixConvGPU_restrict(unsigned char* __restrict__ dIn, int width, int height, int paddingX, int paddingY, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char* __restrict__ dOut)
+{
+    // Calculate our pixel's location
+    float x = ((float)blockIdx.x * (float)blockDim.x) + (float)threadIdx.x;
+    float y = ((float)blockIdx.y * (float)blockDim.y) + (float)threadIdx.y;
+
+    // Calculate radius along X and Y axis
+    // We can also use one kernel variable instead - kernel radius
+    float accum = 0.0;
+    int   kernelRadiusW = kernelW/2;
+    int   kernelRadiusH = kernelH/2;
+
+    // Determine pixels to operate 
+    if(x >= ((float)kernelRadiusW + (float)paddingX) && y >= ((float)kernelRadiusH + (float)paddingY) &&
+       x < (((float)blockDim.x * (float)gridDim.x) - (float)kernelRadiusW - (float)paddingX) &&
+       y < (((float)blockDim.y * (float)gridDim.y) - (float)kernelRadiusH - (float)paddingY))
+    {
+        for(int i = -kernelRadiusH; i <= kernelRadiusH; i++) // Along Y axis
+        {
+            for(int j = -kernelRadiusW; j <= kernelRadiusW; j++) //Along X axis
+            {
+                // Sample the weight for this location
+                float jj = ((float)j+(float)kernelRadiusW);
+                float ii = ((float)i+(float)kernelRadiusH);
+                float w  = constConvKernelMem[(int)((ii * (float)kernelW) + jj + (float)kernelOffset)]; //kernel from constant memory
+                 
+                accum += w * float(dIn[(int)(((y+(float)i) * (float)width) + (x+(float)j))]);
+            }
+        }
+    }
+    
+    dOut[(int)((y * (float)width) + x)] = (unsigned char) accum;
 }
