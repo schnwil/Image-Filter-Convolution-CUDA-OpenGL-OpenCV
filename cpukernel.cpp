@@ -60,8 +60,8 @@ void matrixConvCPUNaive_withoutPadding(unsigned char *dIn, int width, int height
     int   kernelRadiusW = kernelW/2;
     int   kernelRadiusH = kernelH/2;
     
-    for(int y = 0; y < height; y++)
-        for(int x = 0; x < width; x++)
+    for(int y = kernelRadiusH; y < height - kernelRadiusH; y++)
+        for(int x = kernelRadiusW; x < width - kernelRadiusW; x++)
         {
             float accum = 0.0;
             for(int i = -kernelRadiusH; i <= kernelRadiusH; i++)  // Along Y axis
