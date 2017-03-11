@@ -282,7 +282,7 @@ __global__ void matrixConvGPUNaive_withoutPadding(unsigned char *dIn, int width,
                 int ii = (i+kernelRadiusH);
                 float w  = kernel[(ii * kernelW) + jj];
         
-                accum += w * float(dIn[((y+i) * width) + (x+i)]);
+                accum += w * float(dIn[((y+i) * width) + (x+j)]);
             }
         }
     }
@@ -317,7 +317,7 @@ __global__ void matrixConvGPUNaive_withPadding(unsigned char *dIn, int width, in
                 int ii = (i+kernelRadiusH);
                 float w  = kernel[(ii * kernelW) + jj];
         
-                accum += w * float(dIn[((y+i) * width) + (x+i)]);
+                accum += w * float(dIn[((y+i) * width) + (x+j)]);
             }
         }
     }
