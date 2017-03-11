@@ -99,7 +99,10 @@ int main (int argc, char** argv)
         
         // Convert frame to gray scale for further filter operation
 	     // Remove color channels, simplify convolution operation
-        cv::cvtColor(frame, inputMat, CV_BGR2GRAY);
+        if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
+            cv::cvtColor(frame, inputMatCPU, CV_BGR2GRAY);
+        else
+	    cv::cvtColor(frame, inputMat, CV_BGR2GRAY);
        
         switch (key_pressed) {
         case NO_FILTER:
