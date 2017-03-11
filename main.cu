@@ -1,5 +1,6 @@
 #include <string>
 #include <stdio.h>
+#include <time.h>
 
 #include "opencv2/opencv.hpp"
 #include <opencv2/core/core.hpp>
@@ -7,6 +8,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include "common.h"
+#include "gpu.h"
 #include "gputimer.h"
 #include "key_bindings.h"
 
@@ -66,16 +68,26 @@ int main (int argc, char** argv)
     cv::Mat outputMat    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelDataOutput));
     cv::Mat bufferMat    (frame.size(), CV_8U, allocateBuffer(frame.size().width * frame.size().height, &d_pixelBuffer));
 
+    cv::Mat inputMatCPU   (frame.size(), CV_8U);
+    cv::Mat outputMatCPU  (frame.size(), CV_8U);
+    cv::Mat bufferMatCPU  (frame.size(), CV_8U);
     // Create buffer to hold sobel gradients - XandY 
     unsigned char *sobelBufferX, *sobelBufferY;
     cudaMalloc(&sobelBufferX, frame.size().width * frame.size().height);
     cudaMalloc(&sobelBufferY, frame.size().width * frame.size().height);
+    
+    // Create buffer to hold sobel gradients - XandY 
+    unsigned char *sobelBufferXCPU, *sobelBufferYCPU;
+    sobelBufferXCPU = (unsigned char*)malloc(frame.size().width * frame.size().height);
+    sobelBufferYCPU = (unsigned char*)malloc(frame.size().width * frame.size().height);
     
     //key codes to switch between filters
     unsigned int key_pressed = NO_FILTER;
     char charOutputBuf[255];
     string kernel_t = "No Filter";
     double tms = 0.0;
+    struct timespec start, end; // variable to record cpu time
+    
     // Run loop to capture images from camera or loop over single image 
     while(1)
     {
@@ -130,6 +142,22 @@ int main (int argc, char** argv)
            outputMat = bufferMat;
            kernel_t = "Sobel Naive Pad";
            break;
+        case SOBEL_NAIVE_CPU:
+           clock_gettime(CLOCK_MONOTONIC, &start);  // start time 
+           launchGaussianCPU(inputMatCPU.data, outputMatCPU.data, frame.size());
+           launchSobelCPU(outputMatCPU.data, bufferMatCPU.data, sobelBufferXCPU, sobelBufferYCPU, frame.size());
+           clock_gettime(CLOCK_MONOTONIC, &end);  // end time 
+           tms = (NS_IN_SEC * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)*1.0e-6; 
+           outputMatCPU = bufferMatCPU;
+           kernel_t = "Sobel Naive CPU";
+           break;
+        case GAUSSIAN_NAIVE_CPU:
+           clock_gettime(CLOCK_MONOTONIC, &start);  // start time 
+           launchGaussianCPU(inputMatCPU.data, outputMatCPU.data, frame.size());
+           clock_gettime(CLOCK_MONOTONIC, &end);  // end time 
+           tms = (NS_IN_SEC * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)*1.0e-6; 
+           kernel_t = "Gaussian Naive CPU";
+           break;
         }
 
         /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
@@ -144,8 +172,16 @@ int main (int argc, char** argv)
         string metricString = charOutputBuf;
 
         //update display
-        cv::putText(outputMat, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
-        cv::imshow("Video Feed", outputMat);
+        if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
+        {
+            cv::putText(outputMatCPU, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
+            cv::imshow("Video Feed", outputMatCPU);
+        }
+        else
+        {
+            cv::putText(outputMat, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
+            cv::imshow("Video Feed", outputMat);
+        }
 
         int key = cv::waitKey(1);
         key_pressed = key == -1 ? key_pressed : key;
@@ -159,6 +195,10 @@ int main (int argc, char** argv)
     cudaFree(d_X);
     cudaFree(d_Y);
     cudaFree(d_gaussianKernel5x5);
+        
+    // Deallocate host memory
+    free(sobelBufferXCPU);
+    free(sobelBufferYCPU);
 
     return 0;
 }

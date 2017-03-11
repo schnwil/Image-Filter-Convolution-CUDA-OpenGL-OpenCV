@@ -10,6 +10,8 @@ Binded key commands for changing the applied filter and quitting app.
 #define SOBEL_FILTER 50
 #define SOBEL_NAIVE_FILTER 51
 #define SOBEL_NAIVE_PADDED_FILTER 52
+#define SOBEL_NAIVE_CPU 53
+#define GAUSSIAN_NAIVE_CPU 54
 #define ESCAPE 27
 
 #endif // !_KEY_BINDINGS_H
