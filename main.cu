@@ -45,19 +45,22 @@ int main (int argc, char** argv)
     // Open window for each kernel 
     cv::namedWindow("Video Feed");
 
-    cudaMemcpyToSymbol(constConvKernelMem, gaussianKernel5x5, sizeof(gaussianKernel5x5), 0);
-    const ssize_t gaussianKernel5x5Offset = 0;
-
-    cudaMemcpyToSymbol(constConvKernelMem, sobelGradientX, sizeof(sobelGradientX), sizeof(gaussianKernel5x5));
-    cudaMemcpyToSymbol(constConvKernelMem, sobelGradientY, sizeof(sobelGradientY), sizeof(gaussianKernel5x5) + sizeof(sobelGradientX));
-    
     // Calculate kernel offset in contant memory
-    const ssize_t sobelKernelGradOffsetX = sizeof(gaussianKernel5x5)/sizeof(float);
-    const ssize_t sobelKernelGradOffsetY = sizeof(sobelGradientX)/sizeof(float) + sobelKernelGradOffsetX;
+    const ssize_t gaussianKernel5x5Offset = 0;
+    const ssize_t sobelKernelGradOffsetX = sizeof(gaussianKernel5x5) / sizeof(float);
+    const ssize_t sobelKernelGradOffsetY = sizeof(sobelGradientX) / sizeof(float) + sobelKernelGradOffsetX;
+    const ssize_t gaussianSeparableOffset = sizeof(sobelGradientY) / sizeof(float) + sobelKernelGradOffsetY;
+
+    ssize_t offset = 0;
+    cudaMemcpyToSymbol(constConvKernelMem, gaussianKernel5x5, sizeof(gaussianKernel5x5), offset); offset += sizeof(gaussianKernel5x5);
+    cudaMemcpyToSymbol(constConvKernelMem, sobelGradientX, sizeof(sobelGradientX), offset); offset += sizeof(sobelGradientX);
+    cudaMemcpyToSymbol(constConvKernelMem, sobelGradientY, sizeof(sobelGradientY), offset); offset += sizeof(sobelGradientY);
+    cudaMemcpyToSymbol(constConvKernelMem, gaussianSeparableKernel, sizeof(gaussianSeparableKernel), offset); offset += sizeof(gaussianSeparableKernel);
  
     // Create matrix to hold original and processed image 
     camera >> frame;
     unsigned char *d_pixelDataInput, *d_pixelDataOutput, *d_pixelBuffer;
+    unsigned int *d_separableBuffer;
     
     cudaMalloc((void **) &d_gaussianKernel5x5, sizeof(gaussianKernel5x5));
     cudaMalloc((void **) &d_X, sizeof(sobelGradientX));
@@ -78,7 +81,8 @@ int main (int argc, char** argv)
     unsigned char *sobelBufferX, *sobelBufferY;
     cudaMalloc(&sobelBufferX, frame.size().width * frame.size().height);
     cudaMalloc(&sobelBufferY, frame.size().width * frame.size().height);
-    
+    cudaMalloc((void**)&d_separableBuffer, frame.size().width * frame.size().height * sizeof(unsigned int));
+
     // Create buffer to hold sobel gradients - XandY 
     unsigned char *sobelBufferXCPU, *sobelBufferYCPU;
     sobelBufferXCPU = (unsigned char*)malloc(frame.size().width * frame.size().height);
@@ -87,24 +91,26 @@ int main (int argc, char** argv)
     //key codes to switch between filters
     unsigned int key_pressed = NO_FILTER;
     double tms = 0.0;
+    int prev_key = 0;
     struct timespec start, end; // variable to record cpu time
     
     // Run loop to capture images from camera or loop over single image 
-    while(1)
+    while(key_pressed != ESCAPE)
     {
+        int key = cv::waitKey(1);
+        key_pressed = key == -1 ? key_pressed : key;
         string kernel_t = "";
-        if (key_pressed == ESCAPE)
-           break;
 
-        // Capture image frame 
-        if(key_pressed == PAUSE)
-            video_paused = true;
-        
-        if(key_pressed == RESUME)
-            video_paused = false;
+        // special key functions, capture image
+        switch(key_pressed) {
+        case PAUSE:
+           continue;
+        case RESUME:
+           key_pressed = prev_key;
+        }
+        prev_key = key_pressed;
 
-        if(!video_paused)
-            camera >> frame;
+        camera >> frame;
         
         // Convert frame to gray scale for further filter operation
 	// Remove color channels, simplify convolution operation
@@ -188,6 +194,23 @@ int main (int argc, char** argv)
            outputMat = bufferMat;
            kernel_t = "Sobel Restrictive";
            break;
+        case SEPARABLE_GAUSSIAN:
+           t1.start(); // timer for overall metrics
+           launchSeparableKernel(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelBuffer, d_separableBuffer);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Gaussian Separable";
+           break;
+        case SEPARABLE_SOBEL:
+           t1.start(); // timer for overall metrics
+           launchSeparableKernel(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelDataOutput, d_separableBuffer);
+           launchSobel_restrict(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Sobel Separable";
+           break;
         }
 
         /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
@@ -212,9 +235,6 @@ int main (int argc, char** argv)
             cv::putText(outputMat, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
             cv::imshow("Video Feed", outputMat);
         }
-
-        int key = cv::waitKey(1);
-        key_pressed = key == -1 ? key_pressed : key;
     }
     
     // Deallocate memory
@@ -396,6 +416,24 @@ void launchSobelNaive_withPadding(unsigned char *dIn, unsigned char *dOut, unsig
     cudaThreadSynchronize();
     double tms = timer.elapsed(); 
     //printf("Sobel Naive (with padding): Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
+/**
+Launch separable kernel. Call does both the row and col vector-matrix multiplication.
+@param unsigned char *d_input          input array
+@param cv::Size size                   size of input array
+@param float alpha                     scalar
+@param ssize_t kOffset1, kOffset2      offset in constant memory to row and col vectors
+@param int kDim                        dimension size of vectors
+@param unsigned char *d_buffer         output array
+@param unsigned int *d_seperableBuffer temp storage for phase one sum with values > 255   
+**/
+void launchSeparableKernel(unsigned char *d_input, cv::Size size, float alpha, ssize_t kOffset1, ssize_t kOffset2, int kDim, unsigned char *d_buffer, unsigned int *d_seperableBuffer) {
+   dim3 blocks(size.width / 16, size.height / 16);
+   dim3 threads(16, 16);
+
+   separableKernel << <blocks, threads >> > (d_input, size.width, size.height, true, alpha, kOffset1, kDim, d_buffer, d_seperableBuffer);
+   separableKernel << <blocks, threads >> > (d_buffer, size.width, size.height, false, alpha, kOffset2, kDim, d_buffer, d_seperableBuffer);
 }
 
 // Allocate buffer 
@@ -613,4 +651,49 @@ __global__ void matrixConvGPU_restrict(unsigned char* __restrict__ dIn, int widt
     }
     
     dOut[(int)((y * (float)width) + x)] = (unsigned char) accum;
+}
+
+/**
+Separable Kernel does matrix-vector mutliplication. Is meant to be called twice, once for the row
+vector and once for the col vector. First phase needs temp storage for output which has values
+greater than 255 - client needs to allocate integer array to store these values. Second phase does
+the final sum and then multiples this result with alpha and thresholds the value which is then passed
+into the output array.
+@param unsigned char *d_input          input array
+@param int width, height               width and height of the input array
+@param bool phase1                     if true then output stored in d_seperableBuffer
+@param float alpha                     scalar
+@param ssize_t kOffset                 offset for constant memory where vector stored
+@param int kDim                        dimension size of filter to use
+@param unsigned char *d_output         output array
+@param unsigned int *d_separableBuffer temp storage for phase one sum which is > 255
+**/
+__global__ void separableKernel(unsigned char *d_input, int width, int height, bool phase1, float alpha, ssize_t kOffset, int kDim, unsigned char *d_output, unsigned int *d_separableBuffer) {
+   int tx = blockIdx.x * blockDim.x + threadIdx.x;
+   int ty = blockIdx.y * blockDim.y + threadIdx.y;
+   int rad = kDim / 2;
+   kOffset += rad;
+   const float tmp[5] = { 1.f, 4.f, 7.f, 4.f, 1.f };
+   
+   //get rid of apron/boundary threads
+   if (tx < rad || ty < rad || tx > width - rad || ty > height - rad)
+      return;
+
+   //compute values depending on if this is row or col vector
+   unsigned int accum = 0;
+   for (int i = -rad; i < rad; i++) {
+      if(phase1)
+         accum += d_input[tx + (ty + i)*width] * constConvKernelMem[kOffset + i];
+      else
+         accum += d_separableBuffer[tx + i + ty*width] * constConvKernelMem[kOffset + i];
+   }
+
+   //update output, if phase1 then we need to store values which are >255 in temp storage for next phase
+   if(phase1)
+      d_separableBuffer[tx + ty*width] = accum;
+   else {
+      accum *= alpha;
+      accum = accum > 255 ? 255 : accum; //threshold the pixel
+      d_output[tx + ty*width] = (unsigned char)accum;
+   }
 }

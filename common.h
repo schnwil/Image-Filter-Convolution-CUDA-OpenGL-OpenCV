@@ -39,4 +39,9 @@ const float sobelGradientY[9] =
    -1.f, -2.f, -1.f,
 };
 
+const float gaussianSeparableKernel[5] =
+{
+   1.f, 4.f, 7.f, 4.f, 1.f
+};
+
 #endif

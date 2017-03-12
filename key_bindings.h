@@ -5,7 +5,7 @@
 Binded key commands for changing the applied filter and quitting app.
 **/
 
-#define NO_FILTER 48
+#define NO_FILTER 99
 #define GAUSSIAN_FILTER 49
 #define SOBEL_FILTER 50
 #define SOBEL_NAIVE_FILTER 51
@@ -14,6 +14,8 @@ Binded key commands for changing the applied filter and quitting app.
 #define GAUSSIAN_NAIVE_CPU 54
 #define SOBEL_FILTER_FLOAT 55
 #define SOBEL_FILTER_RESTRICT 56
+#define SEPARABLE_GAUSSIAN 57
+#define SEPARABLE_SOBEL 48
 #define ESCAPE 27
 #define PAUSE 112
 #define RESUME 114
