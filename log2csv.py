@@ -1,5 +1,5 @@
 '''
-Created on March 12, 2011
+Created on March 12, 2017
 
 Converts the log.txt file from the Convolution Project to a csv file.
 Sorts the frames according to the kernel type (so all frames with
@@ -9,8 +9,7 @@ kernel x are grouped together in csv).
 
 @author: William Schneble
 '''
-import nltk
-from nltk.tokenize import RegexpTokenizer
+
 import pandas as pd
 
 #frame object
