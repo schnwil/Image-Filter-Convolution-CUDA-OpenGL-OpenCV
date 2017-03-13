@@ -26,9 +26,9 @@ const float gaussianKernel5x5[25] =
 // Sobel kernel X gradient 
 const float sobelGradientX[9] =
 {
-    -1.f, 0.f, 1.f,
-    -2.f, 0.f, 2.f,
-    -1.f, 0.f, 1.f,
+    1.f, 0.f, -1.f,
+    2.f, 0.f, -2.f,
+    1.f, 0.f, -1.f,
 };
 
 // Sobel kernel Y gradient
@@ -41,7 +41,15 @@ const float sobelGradientY[9] =
 
 const float gaussianSeparableKernel[5] =
 {
-   1.f, 4.f, 7.f, 4.f, 1.f
+   1.f, 4.f, 7.f, 4.f, 1.f,
+};
+
+const float sobelSeparable101[3] = {
+   1.f, 0.f, -1.f,
+};
+
+const float sobelSeparable121[3] = {
+   1.f, 2.f, 1.f,
 };
 
 #endif
