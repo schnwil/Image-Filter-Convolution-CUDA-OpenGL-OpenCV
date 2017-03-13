@@ -16,7 +16,7 @@ void launchGaussian_restrict(unsigned char *dIn, unsigned char *dOut, cv::Size s
 void launchGaussian_float(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
 void launchGaussian_constantMemory(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
 void launchGaussian_withoutPadding(unsigned char *dIn, unsigned char *dOut, cv::Size size,const float* kernel);
-void launchSeparableKernel(unsigned char *d_input, cv::Size size, float alpha, ssize_t kOffset1, ssize_t kOffset2, int kDim, unsigned char *d_buffer, unsigned int *seperableBuffer);
+void launchSeparableKernel(unsigned char *d_input, cv::Size size, float alpha, ssize_t kOffset1, ssize_t kOffset2, int kDim, unsigned char *d_buffer, float *seperableBuffer);
 
 //Kernel
 __global__ void sobelGradientKernel(unsigned char *a, unsigned char *b, unsigned char *c);
@@ -27,6 +27,6 @@ __global__ void matrixConvGPU_restrict(unsigned char *dIn, int width, int height
 __global__ void matrixConvGPU_constantMemory(unsigned char *dIn, int width, int height, int paddingX, int paddingY, ssize_t kOffset, int kernelW, int kernelH, unsigned char *dOut);
 __global__ void matrixConvGPUNaive_withPadding(unsigned char *dIn, int width, int height, int paddingX, int paddingY, int kernelW, int kernelH, unsigned char *dOut, const float *kernel);
 __global__ void matrixConvGPUNaive_withoutPadding(unsigned char *dIn, int width, int height, int kernelW, int kernelH, unsigned char *dOut, const float *kernel);
-__global__ void separableKernel(unsigned char *d_input, int width, int height, bool phase1, float alpha, ssize_t kOffset, int kDim, unsigned char *d_output, unsigned int *seperableBuffer);
+__global__ void separableKernel(unsigned char *d_input, int width, int height, bool phase1, float alpha, ssize_t kOffset, int kDim, unsigned char *d_output, float *seperableBuffer);
 
 #endif

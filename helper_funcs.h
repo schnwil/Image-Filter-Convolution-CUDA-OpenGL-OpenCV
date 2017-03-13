@@ -6,6 +6,7 @@ Helper functions for the convolution program.
 **/
 
 #include <string>
+#include <cuda_runtime.h>
 
 /**
 Returns the formatted string with the metrics passed in.
@@ -29,6 +30,33 @@ static std::vector<std::string> getMetricString(int frameCounter, float fps, flo
    metricString.push_back(s2);
    metricString.push_back(s3);
    return metricString;
+};
+
+/**
+Print a matrix to file from device memory (VERY SLOW).
+@param unsigned char *d_mat      device array to print to file
+@param int width, height         the width and height of the device array
+@param string filename           name of file to print to (w+)
+@precondition                    filename < 100 chars
+**/
+static void printDeviceMatrix(unsigned char *d_mat, int width, int height, std::string filename) {
+   char buff[100];
+   std::string path = "./" + filename + ".txt";
+   sprintf(buff, "%s", path);
+   FILE *file = fopen(buff, "w+");
+   
+   size_t size = width * height;
+   unsigned char *tmp = new unsigned char[size];
+   cudaMemcpy(tmp, d_mat, size, cudaMemcpyDeviceToHost);
+
+   for (int i = 0; i < height; i++) {
+      for (int j = 0; j < width; j++) {
+         fprintf(file, "%3d ", tmp[i*width + j]);
+      }
+      fprintf(file, "\n");
+   }
+
+   free(tmp);
 };
 
 /**
