@@ -19,9 +19,9 @@ Returns the formatted string with the metrics passed in.
 **/
 static std::string getMetricString(int frameCounter, float fps, float mps, std::string kernel_t, double tms) {
    char charOutputBuf[256];
-   sprintf(charOutputBuf, "[Frame #:%d] [FPS:%2.3f] [MPS: %.4f] [Kernel Type ", frameCounter, fps, mps);
+   sprintf(charOutputBuf, "[Frame #: %d] [FPS: %2.3f] [MPS: %.4f] [Kernel Type: ", frameCounter, fps, mps);
    std::string metricString = charOutputBuf; metricString += kernel_t;
-   sprintf(charOutputBuf, "][Kernel Time(ms):%.4f]", tms);
+   sprintf(charOutputBuf, "][Kernel Time(ms): %.4f]", tms);
    metricString += charOutputBuf;
    return metricString;
 };

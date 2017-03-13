@@ -23,6 +23,7 @@ using namespace std;
 
 int main (int argc, char** argv)
 {
+    FILE *flog = fopen("./log.txt", "w+");
     gpuTimer t1;
     unsigned int frameCounter=0;
     float *d_X,*d_Y,*d_gaussianKernel5x5;
@@ -229,8 +230,7 @@ int main (int argc, char** argv)
         float fps = 1000.f / tms; //fps = fps > MAX_FPS ? MAX_FPS : fps;
         double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
         string metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
-        //printf("Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f\n", 
-        //   frameCounter, fps, mps, kernel_t, tms);
+        fprintf(flog, "%s \n", metricString.c_str());
 
         //update display
         if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
