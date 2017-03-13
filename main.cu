@@ -220,19 +220,24 @@ int main (int argc, char** argv)
         frameCounter++;
         float fps = 1000.f / tms; //fps = fps > MAX_FPS ? MAX_FPS : fps;
         double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
-        string metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
+        vector<string> metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
+        assert(metricString.size() == 3); // Make sure vector consist of 3 metric string
         //printf("Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f\n", 
         //   frameCounter, fps, mps, kernel_t, tms);
 
         //update display
         if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
         {
-            cv::putText(outputMatCPU, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
+            cv::putText(outputMatCPU, metricString[0], cvPoint(30, 30), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMatCPU, metricString[1], cvPoint(30, 50), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMatCPU, metricString[2], cvPoint(30, 70), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
             cv::imshow("Video Feed", outputMatCPU);
         }
         else
         {
-            cv::putText(outputMat, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
+            cv::putText(outputMat, metricString[0], cvPoint(30, 30), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMat, metricString[1], cvPoint(30, 50), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMat, metricString[2], cvPoint(30, 70), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
             cv::imshow("Video Feed", outputMat);
         }
     }
