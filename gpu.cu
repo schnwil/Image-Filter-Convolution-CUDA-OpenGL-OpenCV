@@ -1,8 +1,18 @@
 #include "gpu.h"
 #include "common.h"
 
+/**
+Kernel calls and device memory managment functions.
+**/
+
 __constant__ float constConvKernelMem[256];
 
+/**
+Store values into constant memory for kernel calls.
+@param const void *src     memory to copy to device
+@param ssize_t count       number of elements to copy
+@param ssize_t offset      offset from start of constant memory on device
+**/
 void setConstantMemory(const void *src, ssize_t count, ssize_t offset) 
 {
    cudaMemcpyToSymbol(constConvKernelMem, src, count, offset);
