@@ -3,14 +3,19 @@
 
 #pragma once
 #include <opencv2/core/core.hpp>
+#include <cuda_runtime.h>
+#include "common.h"
+
 //Launcher
 unsigned char* allocateBuffer(unsigned int size, unsigned char **dPtr);
+void setConstantMemory(const void *src, ssize_t count, ssize_t offset);
 
 void launchSobel_restrict(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY);
 void launchSobel_float(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY);
 void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY);
 void launchSobelNaive_withoutPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,const float *d_X,const float *d_Y);
 void launchSobelNaive_withPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,const float *d_X,const float *d_Y);
+void launchSobelGradientKernel(int width, int height, unsigned char *gX, unsigned char *gY, unsigned char *dOut);
 
 void launchGaussian_restrict(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
 void launchGaussian_float(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
