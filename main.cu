@@ -223,6 +223,19 @@ int main (int argc, char** argv)
            outputMat = bufferMat;
            kernel_t = "Sobel Separable";
            break;
+        case SEPARABLE_SOBEL_SM:
+           t1.start(); // timer for overall metrics
+           launchSeparableKernelShared(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelDataOutput, d_separableBuffer);
+           launchSeparableKernelShared(d_pixelDataOutput, frame.size(), 1.f, sobel101Offset, sobel121Offset, 3, sobelBufferY, d_separableBuffer);
+           launchSeparableKernelShared(d_pixelDataOutput, frame.size(), 1.f, sobel121Offset, sobel101Offset, 3, sobelBufferX, d_separableBuffer);
+
+           sobelGradientKernel << <dim3(frame.size().width * frame.size().height / 256), dim3(256) >> >(sobelBufferX, sobelBufferY, d_pixelBuffer);
+           t1.stop();
+
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Sobel Separable Shared";
+           break;
         case SOBEL_FILTER_SHARED:
            t1.start(); // timer for overall metrics
            launchGaussian_sharedMem(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
@@ -500,6 +513,24 @@ void launchSeparableKernel(unsigned char *d_input, cv::Size size, float alpha, s
    separableKernel << <blocks, threads >> > (d_input, size.width, size.height, true, alpha, kOffset1, kDim, d_buffer, d_seperableBuffer);
    cudaDeviceSynchronize();
    separableKernel << <blocks, threads >> > (d_input, size.width, size.height, false, alpha, kOffset2, kDim, d_buffer, d_seperableBuffer);
+}
+
+/**
+Launch separable kernel with shared memory. Call does both the row and col vector-matrix multiplication.
+@param unsigned char *d_input          input array
+@param cv::Size size                   size of input array
+@param float alpha                     scalar
+@param ssize_t kOffset1, kOffset2      offset in constant memory to row and col vectors
+@param int kDim                        dimension size of vectors
+@param unsigned char *d_buffer         output array
+@param int *d_seperableBuffer temp storage for phase one sum with values > 255
+**/
+void launchSeparableKernelShared(unsigned char *d_input, cv::Size size, float alpha, ssize_t kOffset1, ssize_t kOffset2, int kDim, unsigned char *d_buffer, float *d_seperableBuffer) {
+   dim3 blocks(size.width / 16, size.height / 16);
+   dim3 threads(16, 16);
+
+   separableKernelShared << <blocks, threads >> > (d_input, size.width, size.height, true, alpha, kOffset1, kDim, d_buffer, d_seperableBuffer);
+   separableKernelShared << <blocks, threads >> > (d_input, size.width, size.height, false, alpha, kOffset2, kDim, d_buffer, d_seperableBuffer);
 }
 
 // Allocate buffer 
@@ -846,4 +877,69 @@ __global__ void matrixConvGPU_sharedMem(unsigned char* dIn, int width, int heigh
    if(row < height && col < width) 
        dOut[row * width + col] = (unsigned char) accum;
    __syncthreads();  // make sure all thread has finished execution and shared memory is populated with required matrix tile
+}
+
+/**
+Shared memory version of the separable kernel. Uses a shared space 16x16 floats for col vector only.
+This is because the row vector gets cached and thus does not require shared space for speedup.
+@param unsigned char *d_input          input array
+@param int width, height               width and height of the input array
+@param bool phase1                     true for col vector, false for row
+@param float alpha                     scalar
+@param ssize_t kOffset                 offset for constant memory where vector stored
+@param int kDim                        dimension size of filter to use
+@param unsigned char *d_output         output array
+@param int *d_separableBuffer temp storage for phase one sum which is > 255
+**/
+__global__ void separableKernelShared(unsigned char *d_input, int width, int height, bool phase1, float alpha, ssize_t kOffset, int kDim, unsigned char *d_output, float *d_separableBuffer) {
+   int tx = blockIdx.x * blockDim.x + threadIdx.x;
+   int ty = blockIdx.y * blockDim.y + threadIdx.y;
+   int rad = kDim / 2;
+   kOffset += rad;
+
+   __shared__  float shared[16][16];
+
+   //get rid of apron/boundary threads
+   if (phase1) {
+      //buffer phase1 only (the Y phase)
+      shared[threadIdx.y][threadIdx.x] = (float)d_input[tx + ty*width];
+      __syncthreads();
+      if (ty < rad || ty > height - rad)
+         return;
+   }
+   else {
+      if (tx < rad || tx > width - rad)
+         return;
+   }
+
+   //compute values depending on if this is row or col vector
+   float accum = 0;
+   for (int i = -rad; i <= rad; i++) {
+      if (phase1) {
+         //apron threads will have to access outside of the shared space
+         if (threadIdx.y < rad && i < 0) {
+            accum += (float)d_input[tx + (ty + i)*width] * constConvKernelMem[kOffset + i];
+         }
+         else if (threadIdx.y > 15 - rad && i > 0) {
+            accum += (float)d_input[tx + (ty + i)*width] * constConvKernelMem[kOffset + i];
+         }
+         else {
+            accum += (float)shared[threadIdx.y + i][threadIdx.x] * constConvKernelMem[kOffset + i];
+         }
+      }
+      else {
+         accum += d_separableBuffer[tx + i + ty*width] * constConvKernelMem[kOffset + i];
+      }
+   }
+
+   //update output, if phase1 then we need to store values which are >255 in temp storage for next phase
+   if (phase1) {
+      d_separableBuffer[tx + ty*width] = accum;
+   }
+   else {
+      accum *= alpha;
+      accum = accum > 255 ? 255 : accum; //threshold the pixel
+      accum = accum < 0 ? 0 : accum;
+      d_output[tx + ty*width] = (unsigned char)accum;
+   }
 }
