@@ -45,9 +45,23 @@ with open(path + 'log.txt') as f:
 
 #put the frame objects into a csv with similar frames together
 stringList = []
+averagesList = []
 listFrames = sorted(listFrames, key=getKey)
+lastKernelT = listFrames[0].ktype
+avgfps = 0.0; avgmps = 0.0; avgktime = 0.0; count = 0;
 for i in listFrames:
     stringList.append([i.ktype, i.frame, i.ktime, i.fps, i.mps])
+    if(i.ktype == lastKernelT):
+        avgfps += float(i.fps); avgmps += float(i.mps); avgktime += float(i.ktime)
+        count += 1
+    else:
+        averagesList.append([lastKernelT, avgktime/count, avgfps/count, avgmps/count])
+        lastKernelT = i.ktype
+        avgktime = float(i.ktime); avgfps = float(i.fps); avgmps = float(i.mps);
+        count = 1
 df = pd.DataFrame(stringList, columns=['Kernel Type', 'Frame', 'Kernel Time(ms)', 'FPS', 'MPS'])
 df.set_index('Frame', inplace=True)
 df.to_csv(path + 'results.csv')
+avgdf = pd.DataFrame(averagesList, columns=['Kernel Type', 'Avg Kernel Time (ms)', 'Avg FPS', 'Avg MPS'])
+avgdf.set_index('Kernel Type', inplace=True)
+avgdf.to_csv(path + 'resultsAvg.csv')

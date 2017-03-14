@@ -24,7 +24,7 @@ static std::vector<std::string> getMetricString(int frameCounter, float fps, flo
    s1 = "[Kernel Type : "; s1 +=kernel_t; s1 += "]";
    sprintf(charOutputBuf, "[Frame #:%d] [Kernel Time(ms):%.4f]", frameCounter, tms);
    s2 = charOutputBuf;
-   sprintf(charOutputBuf, "[FPS:%2.3f] [MPS: %.4f]", fps, mps);
+   sprintf(charOutputBuf, "[FPS:%2.3f] [MPS:%.4f]", fps, mps);
    s3 = charOutputBuf;
    metricString.push_back(s1);
    metricString.push_back(s2);
