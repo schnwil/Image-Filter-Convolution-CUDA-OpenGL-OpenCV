@@ -12,9 +12,12 @@ kernel x are grouped together in csv).
 
 import pandas as pd
 
+#!UPDATE THIS!#
+path = "C:/Users/Alex/Documents/Visual Studio 2015/Projects/convolutions/convolutions/"
+
 #frame object
 class frame():
-    def __init__(self, frame, fps, mps, ktype, ktime):
+    def __init__(self, ktype, frame, ktime, fps, mps):
         self.frame = cleanStr(frame)
         self.fps = cleanStr(fps)
         self.mps = cleanStr(mps)
@@ -33,7 +36,6 @@ def cleanStr(str):
     return tokens[0]
 
 #put the log data into frame objects
-path = "C:/Users/Alex/Documents/Visual Studio 2015/Projects/convolutions/convolutions/"
 listFrames = []
 with open(path + 'log.txt') as f:
     for line in f:
@@ -45,7 +47,7 @@ with open(path + 'log.txt') as f:
 stringList = []
 listFrames = sorted(listFrames, key=getKey)
 for i in listFrames:
-    stringList.append([i.frame, i.fps, i.mps, i.ktype, i.ktime])
-df = pd.DataFrame(stringList, columns=['Frame', 'FPS', 'MPS', 'Kernel Type', 'Kernel Time(ms)'])
+    stringList.append([i.ktype, i.frame, i.ktime, i.fps, i.mps])
+df = pd.DataFrame(stringList, columns=['Kernel Type', 'Frame', 'Kernel Time(ms)', 'FPS', 'MPS'])
 df.set_index('Frame', inplace=True)
 df.to_csv(path + 'results.csv')
