@@ -843,4 +843,3 @@ __global__ void matrixConvGPU_sharedMem(unsigned char* dIn, int width, int heigh
        dOut[row * width + col] = (unsigned char) accum;
    __syncthreads();  // make sure all thread has finished execution and shared memory is populated with required matrix tile
 }
-
