@@ -15,14 +15,20 @@ Returns the formatted string with the metrics passed in.
 @param float mps              Megapixels per second
 @param string kernel_t        string of the kernel type used
 @param double tms             time elapsed
-@return string                formatted string with metric info
+@return vector<string>        formatted string vector with metric info
 **/
-static std::string getMetricString(int frameCounter, float fps, float mps, std::string kernel_t, double tms) {
+static std::vector<std::string> getMetricString(int frameCounter, float fps, float mps, std::string kernel_t, double tms) {
    char charOutputBuf[256];
-   sprintf(charOutputBuf, "[Frame #: %d] [FPS: %2.3f] [MPS: %.4f] [Kernel Type: ", frameCounter, fps, mps);
-   std::string metricString = charOutputBuf; metricString += kernel_t;
-   sprintf(charOutputBuf, "][Kernel Time(ms): %.4f]", tms);
-   metricString += charOutputBuf;
+   std::vector<std::string> metricString;
+   std::string s1,s2,s3;
+   s1 = "[Kernel Type : "; s1 +=kernel_t; s1 += "]";
+   sprintf(charOutputBuf, "[Frame #:%d] [Kernel Time(ms):%.4f]", frameCounter, tms);
+   s2 = charOutputBuf;
+   sprintf(charOutputBuf, "[FPS:%2.3f] [MPS: %.4f]", fps, mps);
+   s3 = charOutputBuf;
+   metricString.push_back(s1);
+   metricString.push_back(s2);
+   metricString.push_back(s3);
    return metricString;
 };
 

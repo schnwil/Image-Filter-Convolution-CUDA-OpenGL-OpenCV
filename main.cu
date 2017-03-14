@@ -14,6 +14,9 @@
 #include "helper_funcs.h"
 
 #define MAX_FPS 60.0
+#define TILE_W 16
+#define GAUSSIAN_KERNEL_RADIUS 2
+#define SOBEL_KERNEL_RADIUS 1
 
 __constant__ float constConvKernelMem[256];
 // Create the cuda event timers 
@@ -220,6 +223,15 @@ int main (int argc, char** argv)
            outputMat = bufferMat;
            kernel_t = "Sobel Separable";
            break;
+        case SOBEL_FILTER_SHARED:
+           t1.start(); // timer for overall metrics
+           launchGaussian_sharedMem(d_pixelDataInput, d_pixelDataOutput, frame.size(), gaussianKernel5x5Offset);
+           launchSobel_sharedMem(d_pixelDataOutput, d_pixelBuffer, sobelBufferX, sobelBufferY, frame.size(), sobelKernelGradOffsetX, sobelKernelGradOffsetY);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Sobel Shared Mem";
+           break;
         }
 
         /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
@@ -229,18 +241,27 @@ int main (int argc, char** argv)
         frameCounter++;
         float fps = 1000.f / tms; //fps = fps > MAX_FPS ? MAX_FPS : fps;
         double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
-        string metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
-        fprintf(flog, "%s \n", metricString.c_str());
+        vector<string> metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
+        assert(metricString.size() == 3); // Make sure vector consist of 3 metric string
+        fprintf(flog, "%s ", metricString[0].c_str());
+        fprintf(flog, "%s ", metricString[1].c_str());
+        fprintf(flog, "%s \n", metricString[2].c_str());
+        //printf("Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f\n", 
+        //   frameCounter, fps, mps, kernel_t, tms);
 
         //update display
         if(key_pressed == SOBEL_NAIVE_CPU || key_pressed == GAUSSIAN_NAIVE_CPU)
         {
-            cv::putText(outputMatCPU, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
+            cv::putText(outputMatCPU, metricString[0], cvPoint(30, 30), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMatCPU, metricString[1], cvPoint(30, 50), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMatCPU, metricString[2], cvPoint(30, 70), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
             cv::imshow("Video Feed", outputMatCPU);
         }
         else
         {
-            cv::putText(outputMat, metricString, cvPoint(30, 30), CV_FONT_NORMAL, 1, 255, 2, CV_AA, false);
+            cv::putText(outputMat, metricString[0], cvPoint(30, 30), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMat, metricString[1], cvPoint(30, 50), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
+            cv::putText(outputMat, metricString[2], cvPoint(30, 70), CV_FONT_NORMAL, 0.5, 255, 1, CV_AA, false);
             cv::imshow("Video Feed", outputMat);
         }
     }
@@ -284,6 +305,21 @@ void launchGaussian_restrict(unsigned char *dIn, unsigned char *dOut, cv::Size s
     timer.start();
     {
          matrixConvGPU_restrict <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, 0, 0, offset, 5, 5, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
+void launchGaussian_sharedMem(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    timer.start();
+    {
+         matrixConvGPU_sharedMem <TILE_W,GAUSSIAN_KERNEL_RADIUS,TILE_W+2*GAUSSIAN_KERNEL_RADIUS> <<<blocksPerGrid,threadsPerBlock>>>(dIn,size.width, size.height, offset, 5, 5, dOut);
     }
     timer.stop();
     cudaThreadSynchronize();
@@ -355,6 +391,27 @@ void launchSobel_restrict(unsigned char *dIn, unsigned char *dOut, unsigned char
     {
         matrixConvGPU_restrict<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetX, 3, 3, dGradX);
         matrixConvGPU_restrict<<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, 2, 2, offsetY, 3, 3, dGradY);
+        sobelGradientKernel_restrict<<<blocksPerGridP,threadsPerBlockP>>>(dGradX, dGradY, dOut);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+    //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
+}
+
+void launchSobel_sharedMem(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
+{
+    dim3 blocksPerGrid(size.width / 16, size.height / 16);
+    dim3 threadsPerBlock(16, 16);
+    
+    // pythagoran kernel launch paramters
+    dim3 blocksPerGridP(size.width * size.height / 256);
+    dim3 threadsPerBlockP(256, 1);
+     
+    timer.start();
+    {
+        matrixConvGPU_sharedMem <TILE_W,SOBEL_KERNEL_RADIUS,TILE_W+2*SOBEL_KERNEL_RADIUS> <<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, offsetX, 3, 3, dGradX);
+        matrixConvGPU_sharedMem <TILE_W,SOBEL_KERNEL_RADIUS,TILE_W+2*SOBEL_KERNEL_RADIUS> <<<blocksPerGrid,threadsPerBlock>>>(dIn, size.width, size.height, offsetY, 3, 3, dGradY);
         sobelGradientKernel_restrict<<<blocksPerGridP,threadsPerBlockP>>>(dGradX, dGradY, dOut);
     }
     timer.stop();
@@ -711,4 +768,82 @@ __global__ void separableKernel(unsigned char *d_input, int width, int height, b
       accum = accum < 0 ? 0 : accum;
       d_output[tx + ty*width] = (unsigned char)accum;
    }
+}
+
+template<const int TILE_WIDTH, const int KERNEL_RADIUS, const int SMEM_WIDTH>
+__global__ void matrixConvGPU_sharedMem(unsigned char* dIn, int width, int height, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char* dOut)
+{
+    __shared__ char s_data[SMEM_WIDTH*SMEM_WIDTH];
+
+    // Calculate output pixel's location
+    int row = blockIdx.y * TILE_WIDTH + threadIdx.y;
+    int col = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    
+    // Calculate index of thread in thread block based on TILE_WIDTH
+    int smem_index = threadIdx.x + threadIdx.y * TILE_WIDTH;
+    // Calculate 2-D coordinate based on shared_memory size which is greater than TILE_WIDTH
+    int dy = smem_index / SMEM_WIDTH;
+    int dx = smem_index % SMEM_WIDTH;
+    
+    // 
+    float accum = 0.0;
+    
+    //
+    int shifted_row =  dy + (blockIdx.y * TILE_WIDTH) - KERNEL_RADIUS;
+    int shifted_col =  dx + (blockIdx.x * TILE_WIDTH) - KERNEL_RADIUS;
+    int gmem_index = shifted_col + shifted_row * width;
+    
+    // Load TILE_WIDTH x TILE_WIDTH data from global memory
+    if(shifted_row >= 0 && ((shifted_row) < height) &&
+       shifted_col >= 0 && (shifted_col < width))
+        s_data[dy * SMEM_WIDTH + dx] = dIn[gmem_index];
+    else
+        s_data[dy * SMEM_WIDTH + dx] = 0; 
+    __syncthreads();  // make sure all thread has finished execution and shared memory is populated with required matrix tile
+  
+    // Calculate index and 2-D coordinates for loading apron data which
+    // does not gets fetched during previous load of TILE_WIDTHxTILE_WIDTH
+    // Note the offset below - TILE_WIDTH*TILE_WIDTH
+    smem_index  = threadIdx.x + (threadIdx.y * TILE_WIDTH) + (TILE_WIDTH * TILE_WIDTH);  
+    dy = smem_index / SMEM_WIDTH;
+    dx = smem_index % SMEM_WIDTH; 
+    
+    shifted_row =  dy +  (blockIdx.y * TILE_WIDTH) - KERNEL_RADIUS;
+    shifted_col =  dx +  (blockIdx.x * TILE_WIDTH) - KERNEL_RADIUS;
+    gmem_index = shifted_col + shifted_row * width;
+
+    if(dy<SMEM_WIDTH) // ignore threads outside apron 
+    {
+        if(shifted_row >= 0 && ((shifted_row) < height) &&
+           shifted_col >= 0 && (shifted_col < width))
+           s_data[dy * SMEM_WIDTH + dx] = dIn[gmem_index];
+        else
+            s_data[dy * SMEM_WIDTH + dx] = 0; 
+    }
+    __syncthreads();  // make sure all thread has finished execution and shared memory is populated with required matrix tile
+    
+    // Perform Convolution
+    /*for(int i = -kernelRadiusH; i <= kernelRadiusH; i++) // Along Y axis
+     // {}
+        for(int j = -kernelRadiusW; j <= kernelRadiusW; j++) //Along X axis
+    */ 
+     //Simplify above operation
+     for(int i = 0; i < kernelH; i++) // Along Y axis
+     {
+        for(int j = 0; j < kernelW; j++) //Along X axis
+        {
+                // Sample the weight for this location
+                /*float jj = ((float)j+(float)kernelRadiusW);
+                  float ii = ((float)i+(float)kernelRadiusH);
+                  float w  = constConvKernelMem[(int)((ii * (float)kernelW) + jj + (float)kernelOffset)]; //kernel from constant memory
+                */
+                float w  = constConvKernelMem[i * kernelW + (j + kernelOffset)];
+                accum += w * (float)s_data[(threadIdx.y + i) * SMEM_WIDTH + (threadIdx.x + j)];
+        }
+     }
+   
+   // All threads does not write to output buffer
+   if(row < height && col < width) 
+       dOut[row * width + col] = (unsigned char) accum;
+   __syncthreads();  // make sure all thread has finished execution and shared memory is populated with required matrix tile
 }
