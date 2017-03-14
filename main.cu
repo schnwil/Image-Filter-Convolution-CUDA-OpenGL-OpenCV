@@ -26,6 +26,7 @@ using namespace std;
 
 int main (int argc, char** argv)
 {
+    FILE *flog = fopen("./log.txt", "w+");
     gpuTimer t1;
     unsigned int frameCounter=0;
     float *d_X,*d_Y,*d_gaussianKernel5x5;
@@ -242,6 +243,9 @@ int main (int argc, char** argv)
         double mps = 1.0e-6* (double)(frame.size().height*frame.size().width) / (tms*0.001);
         vector<string> metricString = getMetricString(frameCounter, fps, mps, kernel_t, tms);
         assert(metricString.size() == 3); // Make sure vector consist of 3 metric string
+        fprintf(flog, "%s ", metricString[0].c_str());
+        fprintf(flog, "%s ", metricString[1].c_str());
+        fprintf(flog, "%s \n", metricString[2].c_str());
         //printf("Frame #:%d FPS:%2.3f MPS: %.4f Kernel Type %s Kernel Time (ms): %.4f\n", 
         //   frameCounter, fps, mps, kernel_t, tms);
 
