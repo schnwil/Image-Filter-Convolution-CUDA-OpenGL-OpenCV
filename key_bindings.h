@@ -19,5 +19,6 @@ Binded key commands for changing the applied filter and quitting app.
 #define ESCAPE 27
 #define PAUSE 112
 #define RESUME 114
+#define SOBEL_FILTER_SHARED 113
 
 #endif // !_KEY_BINDINGS_H
