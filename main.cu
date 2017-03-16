@@ -109,6 +109,10 @@ int main (int argc, char** argv)
         key_pressed = key == -1 ? key_pressed : key;
         string kernel_t = "";
 
+		int rows = frame.rows;
+    	int cols = frame.cols;
+		int filterKernelSize = 5;
+
         // special key functions, capture image
         switch(key_pressed) {
         case PAUSE:
@@ -244,8 +248,32 @@ int main (int argc, char** argv)
            tms = t1.elapsed();
            outputMat = bufferMat;
            kernel_t = "Sobel Shared Mem";
+           break;       
+        case BOX_FILTER:
+           t1.start(); // timer for overall metrics
+           //launchSeparableKernel(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelBuffer, d_separableBuffer);
+		   //
+		   // launch the filter kernel function on the device (GPU)
+		   //
+    	   boxFilter(d_pixelDataInput, d_pixelDataOutput, cols, rows, filterKernelSize);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Gaussian Separable";
            break;
-        }
+        case MEDIAN_FILTER: 
+           t1.start(); // timer for overall metrics
+           //launchSeparableKernel(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelBuffer, d_separableBuffer);
+		   //
+		   // launch the filter kernel function on the device (GPU)
+		   //
+    	   medianFilter(d_pixelDataInput, d_pixelDataOutput, cols, rows, filterKernelSize);
+           t1.stop();
+           tms = t1.elapsed();
+           outputMat = bufferMat;
+           kernel_t = "Gaussian Separable";
+		   break;
+		}
 
         /**printf("Overall : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",
            1.0e-6* (double)(frame.size().height*frame.size().width)/(tms*0.001),frame.size().height*frame.size().width,tms); **/
@@ -531,6 +559,106 @@ void launchSeparableKernelShared(unsigned char *d_input, cv::Size size, float al
 
    separableKernelShared << <blocks, threads >> > (d_input, size.width, size.height, true, alpha, kOffset1, kDim, d_buffer, d_seperableBuffer);
    separableKernelShared << <blocks, threads >> > (d_input, size.width, size.height, false, alpha, kOffset2, kDim, d_buffer, d_seperableBuffer);
+}
+
+//
+// launch the box filter kernel
+//
+void boxFilter(unsigned char *imageInMat, unsigned char *imageOutMat, 
+				 int rows, int cols, int kSize)
+{
+	// transfer CPU buffer to GPU memory and modify
+	int size = rows * cols;
+	unsigned char *d_imageInMat;
+	cudaError_t err1 = cudaMalloc((void **)&d_imageInMat, size);
+	if (err1 != cudaSuccess) {
+        cout << "the error is " << cudaGetErrorString(err1) << endl;
+    }
+	unsigned char *d_imageOutMat;
+	cudaError_t err2 = cudaMalloc((void **)&d_imageOutMat, size);
+	if (err2 != cudaSuccess) {
+        cout << "the error is " << cudaGetErrorString(err2) << endl;
+    }
+	cudaMemcpy(d_imageInMat, imageInMat, size, cudaMemcpyHostToDevice);
+
+	// kernel call...
+
+	// specify the 2D block dimensions in threads per block
+    dim3 blockSize(NUM_THRDS, NUM_THRDS);
+
+    // calculate the number of blocks per each grid side
+    int bksX = (cols + blockSize.x - 1)/blockSize.x;
+    int bksY = (rows + blockSize.y - 1)/blockSize.y;
+
+    // specify the grid dimensions
+    dim3 gridSize(bksX, bksY);
+
+	timer.start();
+    {
+        // launch the modifyImageK() kernel function on the device (GPU)
+    	boxFilterK<<<gridSize, blockSize>>>(d_imageInMat, d_imageOutMat, 
+										rows, cols, kSize);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+
+	// transfer GPU memory to CPU buffer
+	cudaMemcpy(imageOutMat, d_imageOutMat, size, cudaMemcpyDeviceToHost);
+
+	// free up the allocated memory
+	cudaFree(d_imageInMat);
+	cudaFree(d_imageOutMat);		
+}
+
+//
+// launch the median filter kernel
+//
+void medianFilter(unsigned char *imageInMat, unsigned char *imageOutMat, 
+					int rows, int cols, int kSize)
+{
+	// transfer CPU buffer to GPU memory and modify
+	int size = rows * cols;
+	unsigned char *d_imageInMat;
+	cudaError_t err1 = cudaMalloc((void **)&d_imageInMat, size);
+	if (err1 != cudaSuccess) {
+        cout << "the error is " << cudaGetErrorString(err1) << endl;
+    }
+	unsigned char *d_imageOutMat;
+	cudaError_t err2 = cudaMalloc((void **)&d_imageOutMat, size);
+	if (err2 != cudaSuccess) {
+        cout << "the error is " << cudaGetErrorString(err2) << endl;
+    }
+	cudaMemcpy(d_imageInMat, imageInMat, size, cudaMemcpyHostToDevice);
+
+	// kernel call...
+
+	// specify the 2D block dimensions in threads per block
+    dim3 blockSize(NUM_THRDS, NUM_THRDS);
+
+    // calculate the number of blocks per each grid side
+    int bksX = (cols + blockSize.x - 1)/blockSize.x;
+    int bksY = (rows + blockSize.y - 1)/blockSize.y;
+
+    // specify the grid dimensions
+    dim3 gridSize(bksX, bksY);
+
+	timer.start();
+    {
+		// launch the modifyImageK() kernel function on the device (GPU)
+    	medianFilterK<<<gridSize, blockSize>>>(d_imageInMat, d_imageOutMat, 
+										rows, cols, kSize);
+    }
+    timer.stop();
+    cudaThreadSynchronize();
+    double tms = timer.elapsed(); 
+
+	// transfer GPU memory to CPU buffer
+	cudaMemcpy(imageOutMat, d_imageOutMat, size, cudaMemcpyDeviceToHost);
+
+	// free up the allocated memory
+	cudaFree(d_imageInMat);
+	cudaFree(d_imageOutMat);		
 }
 
 // Allocate buffer 
@@ -942,4 +1070,118 @@ __global__ void separableKernelShared(unsigned char *d_input, int width, int hei
       accum = accum < 0 ? 0 : accum;
       d_output[tx + ty*width] = (unsigned char)accum;
    }
+}
+
+//
+// define a square submatrix of size kSize
+// using the thread index as the center value
+// if the border values are outside the image matrix bounds,
+// do not use those values in the calculation
+// 	- sort the submatrix
+//	- determine the median value of the sorted submatrix
+//	- replace the original pixel value at index with the median value
+//	
+__global__ 
+void medianFilterK(unsigned char *imageInMat, unsigned char *imageOutMat, 
+				int rows, int cols, int kSize)
+{
+	unsigned char sortMatrix[MAX_K_SIZE * MAX_K_SIZE];
+    // calculate the row and column that the thread works on
+	int col = (blockIdx.x * blockDim.x) + threadIdx.x;
+	int row = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+	// use column major indexing to match OpenCV Mat class
+	// the 1D thread index is the center pixel value of the kernel
+	int pixel = col * rows + row;
+
+	int radius = (kSize - 1)/2;
+
+	// iterate around the submatrix and copy the values to be sorted	
+	// to the sort matrix.  Do not copy values outside the image boundaries
+	int count = 0;
+	for (int c = col - radius; c < col + radius; ++c) {
+		for (int r = row - radius; r < row + radius; ++r) {
+			if (   (c < 0) 
+				|| (r < 0)
+				|| (c >= cols) 
+				|| (r >= rows) ) {
+				count += 0;
+			}
+			else {
+				sortMatrix[count] = imageInMat[c * rows + r];
+				count += 1;
+			}
+		} 
+	}
+
+	// run bubble sort only on the elements values added
+	//
+    // Conventional bubble sort
+    //  1. loop through the array a number of times equal to the size of the 
+	//	    array
+    //  2. each iteration in each loop will compare two consecutive array 
+	//	   elements
+    //  3. if the first is greater than the second, swap the elements 
+	//	   (sort ascending)
+    //  4. alternatively, if the first is less than the second, swap the 
+	//	   elements (sort descending)
+    //
+
+    // loop over the array...
+    for (int i = 0; i < count; ++i) {
+        // each iteration, ...
+        for (int j = 0; j < count - 1; ++j) {
+            // compare and swap...
+            if (sortMatrix[j] > sortMatrix[j+1]) {
+                int temp = sortMatrix[j];
+                sortMatrix[j] = sortMatrix[j+1];
+                sortMatrix[j+1] = temp;
+            }
+        }
+    }
+	int medIdx = (count / 2) + (count % 2);
+	imageOutMat[pixel] = sortMatrix[medIdx];
+}
+
+//
+// sum the elements defined by a square submatrix of size kSize
+// using the thread index as the center value
+// if the border values are outside the image matrix bounds,
+// do not use those values in the calculation
+//	
+__global__ 
+void boxFilterK(unsigned char *imageInMat, unsigned char *imageOutMat, 
+				int rows, int cols, int kSize)
+{
+    // calculate the row and column that the thread works on
+	int col = (blockIdx.x * blockDim.x) + threadIdx.x;
+	int row = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+	// use column major indexing to match OpenCV Mat class
+	// the 1D thread index is the center pixel value of the kernel
+	int pixel = col * rows + row;
+
+	int radius = (kSize - 1)/2;
+
+	// using the pixel value as the center anchor for the submatrix,
+	// sum the kernel elements and divde the result by the number
+	// of elements summed.  Do not include elements outside of the
+	// image matrix.
+	int sum = 0;
+	int div = 0;
+	for (int c = col - radius; c < col + radius; ++c) {
+		for (int r = row - radius; r < row + radius; ++r) {
+			if (   (c < 0) 
+				|| (r < 0)
+				|| (c >= cols) 
+				|| (r >= rows) ) {
+				sum += 0;
+			}
+			else {
+				sum += imageInMat[c * rows + r];
+				div += 1;
+			}
+		} 
+	}
+	imageOutMat[pixel] = sum/div;
 }

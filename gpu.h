@@ -10,6 +10,16 @@ Kernel calls and device memory managment functions.
 #include <cuda_runtime.h>
 #include "common.h"
 
+//
+// number of threads used to set block dimensions
+//
+#define NUM_THRDS 32
+
+//
+// maxim height and width of filter kernels
+//
+#define MAX_K_SIZE 9
+
 //memory functions
 unsigned char* allocateBuffer(unsigned int size, unsigned char **dPtr);
 
@@ -29,6 +39,12 @@ void launchSeparableKernel(unsigned char *d_input, cv::Size size, float alpha, s
 void launchGaussian_sharedMem(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset);
 void launchSeparableKernelShared(unsigned char *d_input, cv::Size size, float alpha, ssize_t kOffset1, ssize_t kOffset2, int kDim, unsigned char *d_buffer, float *seperableBuffer);
 
+void medianFilter(unsigned char *imageInMat, unsigned char *imageOutMat, 
+					int rows, int cols, int kSize);
+
+void boxFilter(unsigned char *imageInMat, unsigned char *imageOutMat, 
+					int rows, int cols, int kSize);
+
 //Kernel
 __global__ void sobelGradientKernel(unsigned char *a, unsigned char *b, unsigned char *c);
 __global__ void sobelGradientKernel_float(unsigned char *a, unsigned char *b, unsigned char *c);
@@ -43,5 +59,13 @@ __global__ void separableKernelShared(unsigned char *d_input, int width, int hei
 
 template <const int tile_width, const int kernel_radius, const int smem_width>
 __global__ void matrixConvGPU_sharedMem(unsigned char* dIn, int width, int height, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char* dOut);
+
+__global__ 
+void medianFilterK(unsigned char *imageInMat, unsigned char *imageOutMat, 
+				int rows, int cols, int kSize);
+
+__global__ 
+void boxFilterK(unsigned char *imageInMat, unsigned char *imageOutMat, 
+				int rows, int cols, int kSize);
 
 #endif
