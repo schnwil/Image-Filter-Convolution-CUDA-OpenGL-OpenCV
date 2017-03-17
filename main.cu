@@ -35,8 +35,8 @@ int main (int argc, char** argv)
     // For e.g. if camera device is at /dev/video1 - pass 1
     // You can pass video file as well instead of webcam stream
     const char *videoFile = "C:/Users/Alex/Videos/The Witcher 3/test.mp4";
-    cv::VideoCapture camera(videoFile);
-    //cv::VideoCapture camera(1);
+    //cv::VideoCapture camera(videoFile);
+    cv::VideoCapture camera(1);
     
     cv::Mat frame;
     if(!camera.isOpened()) 
@@ -322,7 +322,15 @@ int main (int argc, char** argv)
 
     return 0;
 }
+// end of main
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+// Launcher for gaussian blur filter using float kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @offset - kernel offset in constant memory 
 void launchGaussian_float(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -338,6 +346,11 @@ void launchGaussian_float(unsigned char *dIn, unsigned char *dOut, cv::Size size
     //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for gaussian blur filter using restricted kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @offset - kernel offset in constant memory 
 void launchGaussian_restrict(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -353,6 +366,11 @@ void launchGaussian_restrict(unsigned char *dIn, unsigned char *dOut, cv::Size s
     //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for gaussian blur filter using shared memory  kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @offset - kernel offset in constant memory 
 void launchGaussian_sharedMem(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -368,6 +386,11 @@ void launchGaussian_sharedMem(unsigned char *dIn, unsigned char *dOut, cv::Size 
     //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for gaussian blur filter using constant kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @offset - kernel offset in constant memory 
 void launchGaussian_constantMemory(unsigned char *dIn, unsigned char *dOut, cv::Size size,ssize_t offset)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -383,6 +406,11 @@ void launchGaussian_constantMemory(unsigned char *dIn, unsigned char *dOut, cv::
     //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for gaussian blur filter naive kernel with padding
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @kernel - filter kernel array pointer
 void launchGaussian_withoutPadding(unsigned char *dIn, unsigned char *dOut, cv::Size size, const float *kernel)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -398,6 +426,14 @@ void launchGaussian_withoutPadding(unsigned char *dIn, unsigned char *dOut, cv::
     //printf("Gaussian : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for sobel edge detection filter using float kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @dGradX - buffer for gradient X output
+// @dGradY - buffer for gradient Y output
+// @offsetX - kernel offset in constant memory - X axis
+// @offsetY - kernel offset in constant memory - Y axis
 void launchSobel_float(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -419,6 +455,14 @@ void launchSobel_float(unsigned char *dIn, unsigned char *dOut, unsigned char *d
     //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for sobel edge detection filter using restrict kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @dGradX - buffer for gradient X output
+// @dGradY - buffer for gradient Y output
+// @offsetX - kernel offset in constant memory - X axis
+// @offsetY - kernel offset in constant memory - Y axis
 void launchSobel_restrict(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -440,6 +484,14 @@ void launchSobel_restrict(unsigned char *dIn, unsigned char *dOut, unsigned char
     //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for sobel edge detection filter using shared memory kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @dGradX - buffer for gradient X output
+// @dGradY - buffer for gradient Y output
+// @offsetX - kernel offset in constant memory - X axis
+// @offsetY - kernel offset in constant memory - Y axis
 void launchSobel_sharedMem(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -461,6 +513,14 @@ void launchSobel_sharedMem(unsigned char *dIn, unsigned char *dOut, unsigned cha
     //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for sobel edge detection filter using constant memory kernel
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @dGradX - buffer for gradient X output
+// @dGradY - buffer for gradient Y output
+// @offsetX - kernel offset in constant memory - X axis
+// @offsetY - kernel offset in constant memory - Y axis
 void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size,ssize_t offsetX,ssize_t offsetY)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -482,6 +542,14 @@ void launchSobel_constantMemory(unsigned char *dIn, unsigned char *dOut, unsigne
     //printf("Sobel (using constant memory) : Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for sobel edge detection filter using naive kernel kernel without padding
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @dGradX - buffer for gradient X output
+// @dGradY - buffer for gradient Y output
+// @d_X - filter pointer  - X axis
+// @d_Y - filter pointer - Y axis
 void launchSobelNaive_withoutPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size, const float *d_X,const float *d_Y)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -503,6 +571,14 @@ void launchSobelNaive_withoutPadding(unsigned char *dIn, unsigned char *dOut, un
     //printf("Sobel Naive (without padding): Throughput in Megapixel per second : %.4f, Size : %d pixels, Elapsed time (in ms): %f\n",1.0e-6* (double)(size.height*size.width)/(tms*0.001),size.height*size.width,tms);
 }
 
+// Launcher for sobel edge detection filter using naive kernel kernel with padding
+// @dIn - input image
+// @dOut - output image 
+// @size - dimension
+// @dGradX - buffer for gradient X output
+// @dGradY - buffer for gradient Y output
+// @d_X - filter pointer  - X axis
+// @d_Y - filter pointer - Y axis
 void launchSobelNaive_withPadding(unsigned char *dIn, unsigned char *dOut, unsigned char *dGradX, unsigned char *dGradY, cv::Size size, const float *d_X,const float *d_Y)
 {
     dim3 blocksPerGrid(size.width / 16, size.height / 16);
@@ -685,6 +761,7 @@ __global__ void sobelGradientKernel(unsigned char *gX, unsigned char *gY, unsign
     dOut[idx] = (unsigned char) sqrtf(x*x + y*y);
 }
 
+// FLoat version 
 __global__ void sobelGradientKernel_float(unsigned char *gX, unsigned char *gY, unsigned char *dOut)
 {
     int idx = (int)(((float)blockIdx.x * (float)blockDim.x) + (float)threadIdx.x);
@@ -695,6 +772,7 @@ __global__ void sobelGradientKernel_float(unsigned char *gX, unsigned char *gY, 
     dOut[idx] = (unsigned char) sqrtf(x*x + y*y);
 }
 
+// Restrict version
 __global__ void sobelGradientKernel_restrict(unsigned char* __restrict__ gX, unsigned char* __restrict__ gY, unsigned char *dOut)
 {
     int idx = (int)(((float)blockIdx.x * (float)blockDim.x) + (float)threadIdx.x);
@@ -705,7 +783,7 @@ __global__ void sobelGradientKernel_restrict(unsigned char* __restrict__ gX, uns
     dOut[idx] = (unsigned char) sqrtf(x*x + y*y);
 }
 
-//naive without padding
+//naive kernel without padding
 __global__ void matrixConvGPUNaive_withoutPadding(unsigned char *dIn, int width, int height, int kernelW, int kernelH, unsigned char *dOut, const float *kernel) 
 {
     // Pixel location 
@@ -740,7 +818,7 @@ __global__ void matrixConvGPUNaive_withoutPadding(unsigned char *dIn, int width,
     dOut[(y * width) + x] = (unsigned char)accum;
 }
 
-//Naive with padding
+//Naive kernel with padding
 __global__ void matrixConvGPUNaive_withPadding(unsigned char *dIn, int width, int height, int paddingX, int paddingY, int kernelW, int kernelH, unsigned char *dOut, const float *kernel)
 {
     // Pixel location 
@@ -775,7 +853,7 @@ __global__ void matrixConvGPUNaive_withPadding(unsigned char *dIn, int width, in
     dOut[(y * width) + x] = (unsigned char)accum;
 }
 
-//Constant memory
+// Kerne using Constant memory
 __global__ void matrixConvGPU_constantMemory(unsigned char *dIn, int width, int height, int paddingX, int paddingY, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char *dOut)
 {
     // Calculate our pixel's location
@@ -810,6 +888,7 @@ __global__ void matrixConvGPU_constantMemory(unsigned char *dIn, int width, int 
     dOut[(y * width) + x] = (unsigned char) accum;
 }
 
+// Kernel using floating point optimization
 __global__ void matrixConvGPU_float(unsigned char *dIn, int width, int height, int paddingX, int paddingY, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char *dOut)
 {
     // Calculate our pixel's location
@@ -844,6 +923,7 @@ __global__ void matrixConvGPU_float(unsigned char *dIn, int width, int height, i
     dOut[(int)((y * (float)width) + x)] = (unsigned char) accum;
 }
 
+//Kernel using restricted pointers
 __global__ void matrixConvGPU_restrict(unsigned char* __restrict__ dIn, int width, int height, int paddingX, int paddingY, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char* __restrict__ dOut)
 {
     // Calculate our pixel's location
@@ -929,6 +1009,7 @@ __global__ void separableKernel(unsigned char *d_input, int width, int height, b
    }
 }
 
+// Kernel using shared memory
 template<const int TILE_WIDTH, const int KERNEL_RADIUS, const int SMEM_WIDTH>
 __global__ void matrixConvGPU_sharedMem(unsigned char* dIn, int width, int height, ssize_t kernelOffset, int kernelW, int kernelH, unsigned char* dOut)
 {
