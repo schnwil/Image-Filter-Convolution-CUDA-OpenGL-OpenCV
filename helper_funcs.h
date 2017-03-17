@@ -1,3 +1,9 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : William Schneble, Hemant Nigam
+*       Description : Implements utility functions  
+*****************************************************************/
 #ifndef __HELPER_FUNCS_H__
 #define __HELPER_FUNCS_H__
 

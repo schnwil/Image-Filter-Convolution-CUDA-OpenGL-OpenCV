@@ -1,3 +1,10 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : Hemant Nigam, William Schneble, Shawn Quinn
+*       Description : Implements main, gpu kernels and launchers 
+*****************************************************************/
+
 #include <string>
 #include <stdio.h>
 #include <time.h>

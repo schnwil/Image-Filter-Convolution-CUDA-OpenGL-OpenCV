@@ -1,3 +1,9 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : Hemant Nigam, William Schneble, Shawn Quinn
+*       Description : Commmon header, filter array 
+*****************************************************************/
 #ifndef __COMMON_H__
 #define __COMMON_H__
 

@@ -1,3 +1,9 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : Hemant Nigam
+*       Description : Implements timer utility function 
+*****************************************************************/
 #ifndef __GPU_TIMER_H__
 #define __GPU_TIMER_H__
 

@@ -1,3 +1,10 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : Hemant Nigam, William Schneble
+*       Description : GPU launcher and kernel definition 
+*****************************************************************/
+
 #ifndef __GPU_H__
 #define __GPU_H__
 

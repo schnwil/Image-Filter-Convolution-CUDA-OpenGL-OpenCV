@@ -1,7 +1,7 @@
 ###########################################
 # 	Copyright (C) 2017
 # 	Project : Matrix Convolution
-# 	Author(s)  :
+# 	Author(s)  : Hemant Nigam
 #       Description : Makefile 
 ###########################################
 

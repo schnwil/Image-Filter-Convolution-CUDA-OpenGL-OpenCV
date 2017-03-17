@@ -1,3 +1,9 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : Hemant Nigam, William Schneble
+*       Description : Implements CPU kernels 
+*****************************************************************/
 #include <stdio.h>
 #include <time.h>
 

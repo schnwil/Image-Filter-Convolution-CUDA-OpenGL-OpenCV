@@ -1,3 +1,9 @@
+/*****************************************************************
+* 	Copyright (C) 2017
+* 	Project : Matrix Convolution
+* 	Author(s)  : Hemant Nigam, William Schneble, Shawn Quinn
+*       Description : Key binding acros used for demo 
+*****************************************************************/
 #ifndef _KEY_BINDINGS_H
 #define _KEY_BINDINGS_H
 
