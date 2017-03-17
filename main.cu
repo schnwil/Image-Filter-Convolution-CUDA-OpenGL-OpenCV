@@ -251,10 +251,6 @@ int main (int argc, char** argv)
            break;       
         case BOX_FILTER:
            t1.start(); // timer for overall metrics
-           //launchSeparableKernel(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelBuffer, d_separableBuffer);
-		   //
-		   // launch the filter kernel function on the device (GPU)
-		   //
     	   boxFilter(d_pixelDataInput, d_pixelBuffer, cols, rows, filterKernelSize);
            t1.stop();
            tms = t1.elapsed();
@@ -263,10 +259,6 @@ int main (int argc, char** argv)
            break;
         case MEDIAN_FILTER: 
            t1.start(); // timer for overall metrics
-           //launchSeparableKernel(d_pixelDataInput, frame.size(), 1.f / 256.f, gaussianSeparableOffset, gaussianSeparableOffset, 5, d_pixelBuffer, d_separableBuffer);
-		   //
-		   // launch the filter kernel function on the device (GPU)
-		   //
     	   medianFilter(d_pixelDataInput, d_pixelBuffer, cols, rows, filterKernelSize);
            t1.stop();
            tms = t1.elapsed();
@@ -1063,20 +1055,11 @@ __global__ void matrixConvGPU_sharedMem(unsigned char* dIn, int width, int heigh
     __syncthreads();  // make sure all thread has finished execution and shared memory is populated with required matrix tile
     
     // Perform Convolution
-    /*for(int i = -kernelRadiusH; i <= kernelRadiusH; i++) // Along Y axis
-     // {}
-        for(int j = -kernelRadiusW; j <= kernelRadiusW; j++) //Along X axis
-    */ 
-     //Simplify above operation
      for(int i = 0; i < kernelH; i++) // Along Y axis
      {
         for(int j = 0; j < kernelW; j++) //Along X axis
         {
                 // Sample the weight for this location
-                /*float jj = ((float)j+(float)kernelRadiusW);
-                  float ii = ((float)i+(float)kernelRadiusH);
-                  float w  = constConvKernelMem[(int)((ii * (float)kernelW) + jj + (float)kernelOffset)]; //kernel from constant memory
-                */
                 float w  = constConvKernelMem[i * kernelW + (j + kernelOffset)];
                 accum += w * (float)s_data[(threadIdx.y + i) * SMEM_WIDTH + (threadIdx.x + j)];
         }
