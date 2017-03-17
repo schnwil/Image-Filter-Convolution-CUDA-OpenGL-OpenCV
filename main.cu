@@ -34,9 +34,9 @@ int main (int argc, char** argv)
     /// Pass video file as input
     // For e.g. if camera device is at /dev/video1 - pass 1
     // You can pass video file as well instead of webcam stream
-    const char *videoFile = "C:/Users/Alex/Videos/The Witcher 3/test.mp4";
-    //cv::VideoCapture camera(videoFile);
-    cv::VideoCapture camera(1);
+    const char *videoFile = "./GoogleDemo480P.mp4";
+    cv::VideoCapture camera(videoFile); // Comment this line to launch webcam feed instead of video
+    //cv::VideoCapture camera(1); // Uncomment this to launch webcam on node 1
     
     cv::Mat frame;
     if(!camera.isOpened()) 
