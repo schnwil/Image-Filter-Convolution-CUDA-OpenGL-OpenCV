@@ -15,9 +15,10 @@ https://github.com/schnwil/Image-Filter-Convolution-CUDA-OpenGL-OpenCV.git
 ###Steps###
 ###
 1. Change ARCH in makefile
-2. Change video capture device according to webcam device number or video file in main.cu
-3. make
-4. ./matconv
+2. make
+3. ./matconv  
+
+***Check key_bindings.pdf to try different kernels***
 
 ***NOTE***
 1. Running above execuatable launches a GUI, so it has to be run on the machine with physical desktop connected. 
