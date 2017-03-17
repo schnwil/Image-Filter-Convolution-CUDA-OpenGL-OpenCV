@@ -255,11 +255,11 @@ int main (int argc, char** argv)
 		   //
 		   // launch the filter kernel function on the device (GPU)
 		   //
-    	   boxFilter(d_pixelDataInput, d_pixelDataOutput, cols, rows, filterKernelSize);
+    	   boxFilter(d_pixelDataInput, d_pixelBuffer, cols, rows, filterKernelSize);
            t1.stop();
            tms = t1.elapsed();
            outputMat = bufferMat;
-           kernel_t = "Gaussian Separable";
+           kernel_t = "Box filter";
            break;
         case MEDIAN_FILTER: 
            t1.start(); // timer for overall metrics
@@ -267,11 +267,11 @@ int main (int argc, char** argv)
 		   //
 		   // launch the filter kernel function on the device (GPU)
 		   //
-    	   medianFilter(d_pixelDataInput, d_pixelDataOutput, cols, rows, filterKernelSize);
+    	   medianFilter(d_pixelDataInput, d_pixelBuffer, cols, rows, filterKernelSize);
            t1.stop();
            tms = t1.elapsed();
            outputMat = bufferMat;
-           kernel_t = "Gaussian Separable";
+           kernel_t = "Median filter";
 		   break;
 		}
 
